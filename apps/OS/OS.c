@@ -15,6 +15,10 @@ typedef struct {
     BOOL active_window_open;
     RECT active_window;
     RECT close_button;
+    char console_input[64];
+    uint32_t console_input_len;
+    char console_output[12][64];
+    uint32_t console_output_count;
 } desktop_state_t;
 
 static desktop_state_t g_desktop;
@@ -23,10 +27,182 @@ static HWND g_main_window;
 static int rect_width(RECT rect) { return rect.right - rect.left; }
 static int rect_height(RECT rect) { return rect.bottom - rect.top; }
 
+static void close_active_window(void);
+
+static bool str_eq(const char* left, const char* right)
+{
+    uint32_t i = 0;
+
+    if (!left || !right) {
+        return false;
+    }
+
+    while (left[i] && right[i]) {
+        if (left[i] != right[i]) {
+            return false;
+        }
+        i++;
+    }
+
+    return left[i] == right[i];
+}
+
+static bool str_starts_with(const char* text, const char* prefix)
+{
+    uint32_t i = 0;
+
+    if (!text || !prefix) {
+        return false;
+    }
+
+    while (prefix[i]) {
+        if (text[i] != prefix[i]) {
+            return false;
+        }
+        i++;
+    }
+
+    return true;
+}
+
+static void console_push_line(const char* text)
+{
+    uint32_t i;
+
+    if (!text) {
+        return;
+    }
+
+    if (g_desktop.console_output_count >= 12) {
+        for (i = 1; i < 12; i++) {
+            memcpy(g_desktop.console_output[i - 1], g_desktop.console_output[i], 64);
+        }
+        g_desktop.console_output_count = 11;
+    }
+
+    memset(g_desktop.console_output[g_desktop.console_output_count], 0, 64);
+    for (i = 0; i < 63 && text[i]; i++) {
+        g_desktop.console_output[g_desktop.console_output_count][i] = text[i];
+    }
+
+    g_desktop.console_output_count++;
+}
+
+static void console_clear(void)
+{
+    memset(g_desktop.console_output, 0, sizeof(g_desktop.console_output));
+    g_desktop.console_output_count = 0;
+}
+
+static void console_execute_command(void)
+{
+    char command_line[64];
+    char response[64];
+    uint32_t i;
+
+    memset(command_line, 0, sizeof(command_line));
+    for (i = 0; i < g_desktop.console_input_len && i < 63; i++) {
+        command_line[i] = g_desktop.console_input[i];
+    }
+
+    if (g_desktop.console_input_len > 0) {
+        char prompt_line[64];
+        memset(prompt_line, 0, sizeof(prompt_line));
+        prompt_line[0] = '>';
+        prompt_line[1] = ' ';
+        for (i = 0; i < g_desktop.console_input_len && i < 61; i++) {
+            prompt_line[i + 2] = g_desktop.console_input[i];
+        }
+        console_push_line(prompt_line);
+    }
+
+    if (g_desktop.console_input_len == 0) {
+        console_push_line("Type 'help' for commands");
+    } else if (str_eq(command_line, "help")) {
+        console_push_line("help clear echo time about exit");
+    } else if (str_eq(command_line, "clear")) {
+        console_clear();
+    } else if (str_starts_with(command_line, "echo ")) {
+        console_push_line(command_line + 5);
+    } else if (str_eq(command_line, "time")) {
+        char* now = get_current_time();
+        memset(response, 0, sizeof(response));
+        response[0] = 'T';
+        response[1] = 'i';
+        response[2] = 'm';
+        response[3] = 'e';
+        response[4] = ':';
+        response[5] = ' ';
+        for (i = 0; i < 8 && now[i]; i++) {
+            response[i + 6] = now[i];
+        }
+        console_push_line(response);
+    } else if (str_eq(command_line, "about")) {
+        console_push_line("SBoy28 desktop console v1");
+    } else if (str_eq(command_line, "exit")) {
+        close_active_window();
+    } else {
+        console_push_line("Unknown command. Type help");
+    }
+
+    memset(g_desktop.console_input, 0, sizeof(g_desktop.console_input));
+    g_desktop.console_input_len = 0;
+}
+
+static char scancode_to_ascii(uint8_t scancode)
+{
+    if (scancode >= KEY_A && scancode <= KEY_L) {
+        static const char row1[] = { 'a','s','d','f','g','h','j','k','l' };
+        return row1[scancode - KEY_A];
+    }
+    if (scancode >= KEY_Q && scancode <= KEY_P) {
+        static const char row2[] = { 'q','w','e','r','t','y','u','i','o','p' };
+        return row2[scancode - KEY_Q];
+    }
+    if (scancode >= KEY_Z && scancode <= KEY_M) {
+        static const char row3[] = { 'z','x','c','v','b','n','m' };
+        return row3[scancode - KEY_Z];
+    }
+
+    switch (scancode) {
+        case KEY_0: return '0';
+        case KEY_1: return '1';
+        case KEY_2: return '2';
+        case KEY_3: return '3';
+        case KEY_4: return '4';
+        case KEY_5: return '5';
+        case KEY_6: return '6';
+        case KEY_7: return '7';
+        case KEY_8: return '8';
+        case KEY_9: return '9';
+        case KEY_SPACE: return ' ';
+        case KEY_MINUS: return '-';
+        case KEY_PERIOD: return '.';
+        case KEY_SLASH: return '/';
+        default: return '\0';
+    }
+}
+
 static void set_active_window(const char* title)
 {
     g_desktop.active_window_title = title;
     g_desktop.active_window_open = TRUE;
+    g_desktop.active_window.left = 0;
+    g_desktop.active_window.top = 0;
+    g_desktop.active_window.right = VGA_WIDTH;
+    g_desktop.active_window.bottom = VGA_HEIGHT - 16;
+
+    g_desktop.close_button.left = g_desktop.active_window.right - 14;
+    g_desktop.close_button.top = g_desktop.active_window.top + 2;
+    g_desktop.close_button.right = g_desktop.active_window.right - 4;
+    g_desktop.close_button.bottom = g_desktop.active_window.top + 10;
+
+    if (str_eq(title, "Console")) {
+        console_clear();
+        console_push_line("Console ready. Type help");
+        memset(g_desktop.console_input, 0, sizeof(g_desktop.console_input));
+        g_desktop.console_input_len = 0;
+    }
 }
 
 static void close_active_window(void)
@@ -51,15 +227,19 @@ static void desktop_init(void)
     g_desktop.active_window_title = "None";
     g_desktop.active_window_open = FALSE;
 
-    g_desktop.active_window.left = (VGA_WIDTH / 2) - 100;
-    g_desktop.active_window.top = 26;
-    g_desktop.active_window.right = g_desktop.active_window.left + 200;
-    g_desktop.active_window.bottom = g_desktop.active_window.top + 110;
+    g_desktop.active_window.left = 0;
+    g_desktop.active_window.top = 0;
+    g_desktop.active_window.right = VGA_WIDTH;
+    g_desktop.active_window.bottom = VGA_HEIGHT - 16;
 
     g_desktop.close_button.left = g_desktop.active_window.right - 14;
     g_desktop.close_button.top = g_desktop.active_window.top + 2;
     g_desktop.close_button.right = g_desktop.active_window.right - 4;
     g_desktop.close_button.bottom = g_desktop.active_window.top + 10;
+
+    memset(g_desktop.console_input, 0, sizeof(g_desktop.console_input));
+    g_desktop.console_input_len = 0;
+    console_clear();
 }
 
 static void draw_clock(HDC dc)
@@ -105,10 +285,65 @@ static void draw_active_window(HDC dc)
     os_gui_fill_rect(close_rect, BRIGHT_RED);
     TextOutA(dc, g_desktop.close_button.left + 2, g_desktop.close_button.top + 1, "X", 1);
 
-    TextOutA(dc, g_desktop.active_window.left + 10, g_desktop.active_window.top + 20,
-             "Window opened from Start menu", 29);
-    TextOutA(dc, g_desktop.active_window.left + 10, g_desktop.active_window.top + 36,
-             g_desktop.active_window_title, (int)strlen(g_desktop.active_window_title));
+    if (str_eq(g_desktop.active_window_title, "Console")) {
+        uint32_t i;
+        int32_t y = g_desktop.active_window.top + 14;
+
+        TextOutA(dc, g_desktop.active_window.left + 6, y,
+                 "Type commands then press ENTER", 29);
+        y += 12;
+
+        for (i = 0; i < g_desktop.console_output_count; i++) {
+            TextOutA(dc, g_desktop.active_window.left + 6, y,
+                     g_desktop.console_output[i], (int)strlen(g_desktop.console_output[i]));
+            y += 10;
+        }
+
+        {
+            char input_line[64];
+            memset(input_line, 0, sizeof(input_line));
+            input_line[0] = '>';
+            input_line[1] = ' ';
+            for (i = 0; i < g_desktop.console_input_len && i < 61; i++) {
+                input_line[i + 2] = g_desktop.console_input[i];
+            }
+            TextOutA(dc, g_desktop.active_window.left + 6, g_desktop.active_window.bottom - 12,
+                     input_line, (int)strlen(input_line));
+        }
+    } else {
+        TextOutA(dc, g_desktop.active_window.left + 10, g_desktop.active_window.top + 20,
+                 "Window opened from Start menu", 29);
+        TextOutA(dc, g_desktop.active_window.left + 10, g_desktop.active_window.top + 36,
+                 g_desktop.active_window_title, (int)strlen(g_desktop.active_window_title));
+    }
+}
+
+static void console_handle_key(uint8_t key)
+{
+    char ch;
+
+    if (!g_desktop.active_window_open || !str_eq(g_desktop.active_window_title, "Console")) {
+        return;
+    }
+
+    if (key == KEY_ENTER) {
+        console_execute_command();
+        return;
+    }
+
+    if (key == KEY_BACKSPACE) {
+        if (g_desktop.console_input_len > 0) {
+            g_desktop.console_input_len--;
+            g_desktop.console_input[g_desktop.console_input_len] = '\0';
+        }
+        return;
+    }
+
+    ch = scancode_to_ascii(key);
+    if (ch != '\0' && g_desktop.console_input_len < (sizeof(g_desktop.console_input) - 1)) {
+        g_desktop.console_input[g_desktop.console_input_len++] = ch;
+        g_desktop.console_input[g_desktop.console_input_len] = '\0';
+    }
 }
 
 static void draw_desktop(HDC dc)
@@ -164,6 +399,7 @@ static LRESULT CALLBACK desktop_wnd_proc(HWND hWnd, UINT msg, WPARAM wParam, LPA
 
     switch (msg) {
         case WM_KEYDOWN:
+            console_handle_key((uint8_t)wParam);
             if (wParam == KEY_C) set_active_window("Console");
             if (wParam == KEY_T) set_active_window("Task Manager");
             if (wParam == KEY_S) set_active_window("Settings");
