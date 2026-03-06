@@ -8,12 +8,13 @@
 #include "drivers/thread.h"
 
 typedef struct {
-    RECT desktop_window;
-    RECT info_window;
     RECT start_menu;
     RECT start_button;
     BOOL start_menu_open;
-    const char* selected_option;
+    const char* active_window_title;
+    BOOL active_window_open;
+    RECT active_window;
+    RECT close_button;
 } desktop_state_t;
 
 static desktop_state_t g_desktop;
@@ -22,18 +23,20 @@ static HWND g_main_window;
 static int rect_width(RECT rect) { return rect.right - rect.left; }
 static int rect_height(RECT rect) { return rect.bottom - rect.top; }
 
+static void set_active_window(const char* title)
+{
+    g_desktop.active_window_title = title;
+    g_desktop.active_window_open = TRUE;
+}
+
+static void close_active_window(void)
+{
+    g_desktop.active_window_open = FALSE;
+    g_desktop.active_window_title = "None";
+}
+
 static void desktop_init(void)
 {
-    g_desktop.desktop_window.left = 10;
-    g_desktop.desktop_window.top = 18;
-    g_desktop.desktop_window.right = VGA_WIDTH - 10;
-    g_desktop.desktop_window.bottom = VGA_HEIGHT - 62;
-
-    g_desktop.info_window.left = 10;
-    g_desktop.info_window.top = VGA_HEIGHT - 60;
-    g_desktop.info_window.right = VGA_WIDTH - 10;
-    g_desktop.info_window.bottom = VGA_HEIGHT - 20;
-
     g_desktop.start_menu.left = 4;
     g_desktop.start_menu.top = VGA_HEIGHT - 108;
     g_desktop.start_menu.right = 150;
@@ -45,7 +48,18 @@ static void desktop_init(void)
     g_desktop.start_button.bottom = VGA_HEIGHT - 2;
 
     g_desktop.start_menu_open = FALSE;
-    g_desktop.selected_option = "None";
+    g_desktop.active_window_title = "None";
+    g_desktop.active_window_open = FALSE;
+
+    g_desktop.active_window.left = (VGA_WIDTH / 2) - 100;
+    g_desktop.active_window.top = 26;
+    g_desktop.active_window.right = g_desktop.active_window.left + 200;
+    g_desktop.active_window.bottom = g_desktop.active_window.top + 110;
+
+    g_desktop.close_button.left = g_desktop.active_window.right - 14;
+    g_desktop.close_button.top = g_desktop.active_window.top + 2;
+    g_desktop.close_button.right = g_desktop.active_window.right - 4;
+    g_desktop.close_button.bottom = g_desktop.active_window.top + 10;
 }
 
 static void draw_clock(HDC dc)
@@ -72,41 +86,41 @@ static void draw_start_menu(HDC dc)
     TextOutA(dc, g_desktop.start_menu.left + 8, g_desktop.start_menu.top + 76, "Restart", 7);
 }
 
+static void draw_active_window(HDC dc)
+{
+    os_rect_t app_rect = {
+        g_desktop.active_window.left,
+        g_desktop.active_window.top,
+        rect_width(g_desktop.active_window),
+        rect_height(g_desktop.active_window)
+    };
+    os_rect_t close_rect = {
+        g_desktop.close_button.left,
+        g_desktop.close_button.top,
+        rect_width(g_desktop.close_button),
+        rect_height(g_desktop.close_button)
+    };
+
+    os_gui_draw_window(app_rect, g_desktop.active_window_title);
+    os_gui_fill_rect(close_rect, BRIGHT_RED);
+    TextOutA(dc, g_desktop.close_button.left + 2, g_desktop.close_button.top + 1, "X", 1);
+
+    TextOutA(dc, g_desktop.active_window.left + 10, g_desktop.active_window.top + 20,
+             "Window opened from Start menu", 29);
+    TextOutA(dc, g_desktop.active_window.left + 10, g_desktop.active_window.top + 36,
+             g_desktop.active_window_title, (int)strlen(g_desktop.active_window_title));
+}
+
 static void draw_desktop(HDC dc)
 {
-    os_rect_t desktop_rect = {
-        g_desktop.desktop_window.left,
-        g_desktop.desktop_window.top,
-        rect_width(g_desktop.desktop_window),
-        rect_height(g_desktop.desktop_window)
-    };
-
-    os_rect_t info_rect = {
-        g_desktop.info_window.left,
-        g_desktop.info_window.top,
-        rect_width(g_desktop.info_window),
-        rect_height(g_desktop.info_window)
-    };
-
     os_gui_draw_desktop_background();
     os_gui_draw_taskbar(g_desktop.start_menu_open == TRUE);
 
-    os_gui_draw_window(desktop_rect, "Desktop");
-    TextOutA(dc, g_desktop.desktop_window.left + 10, g_desktop.desktop_window.top + 20,
-             "Simple SBoy28 Desktop", 20);
-    TextOutA(dc, g_desktop.desktop_window.left + 10, g_desktop.desktop_window.top + 36,
-             "Click Start for options.", 24);
-
-    os_gui_draw_window(info_rect, "Task Bar Options");
-    TextOutA(dc, g_desktop.info_window.left + 8, g_desktop.info_window.top + 16,
-             "Console | Task Manager | Settings | End Session | Shut Down | Restart", 68);
-
-    TextOutA(dc, g_desktop.info_window.left + 8, g_desktop.info_window.top + 28,
-             "Selected:", 9);
-    TextOutA(dc, g_desktop.info_window.left + 70, g_desktop.info_window.top + 28,
-             g_desktop.selected_option, (int)strlen(g_desktop.selected_option));
-
     draw_clock(dc);
+
+    if (g_desktop.active_window_open) {
+        draw_active_window(dc);
+    }
 
     if (g_desktop.start_menu_open) {
         draw_start_menu(dc);
@@ -130,17 +144,17 @@ static void process_mouse(void)
 static void choose_menu_option(uint32_t row)
 {
     if (row < 24) {
-        g_desktop.selected_option = "Console";
+        set_active_window("Console");
     } else if (row < 36) {
-        g_desktop.selected_option = "Task Manager";
+        set_active_window("Task Manager");
     } else if (row < 48) {
-        g_desktop.selected_option = "Settings";
+        set_active_window("Settings");
     } else if (row < 60) {
-        g_desktop.selected_option = "End Session";
+        set_active_window("End Session");
     } else if (row < 72) {
-        g_desktop.selected_option = "Shut Down";
+        set_active_window("Shut Down");
     } else {
-        g_desktop.selected_option = "Restart";
+        set_active_window("Restart");
     }
 }
 
@@ -150,12 +164,13 @@ static LRESULT CALLBACK desktop_wnd_proc(HWND hWnd, UINT msg, WPARAM wParam, LPA
 
     switch (msg) {
         case WM_KEYDOWN:
-            if (wParam == KEY_C) g_desktop.selected_option = "Console";
-            if (wParam == KEY_T) g_desktop.selected_option = "Task Manager";
-            if (wParam == KEY_S) g_desktop.selected_option = "Settings";
-            if (wParam == KEY_E) g_desktop.selected_option = "End Session";
-            if (wParam == KEY_D) g_desktop.selected_option = "Shut Down";
-            if (wParam == KEY_R) g_desktop.selected_option = "Restart";
+            if (wParam == KEY_C) set_active_window("Console");
+            if (wParam == KEY_T) set_active_window("Task Manager");
+            if (wParam == KEY_S) set_active_window("Settings");
+            if (wParam == KEY_E) set_active_window("End Session");
+            if (wParam == KEY_D) set_active_window("Shut Down");
+            if (wParam == KEY_R) set_active_window("Restart");
+            if (wParam == KEY_ESC) close_active_window();
             return 0;
 
         case WM_LBUTTONDOWN: {
@@ -178,6 +193,21 @@ static LRESULT CALLBACK desktop_wnd_proc(HWND hWnd, UINT msg, WPARAM wParam, LPA
             if (os_gui_point_in_rect(mx, my, start_button)) {
                 g_desktop.start_menu_open = !g_desktop.start_menu_open;
                 return 0;
+            }
+
+            if (g_desktop.active_window_open) {
+                os_rect_t close_button = {
+                    g_desktop.close_button.left,
+                    g_desktop.close_button.top,
+                    rect_width(g_desktop.close_button),
+                    rect_height(g_desktop.close_button)
+                };
+
+                if (os_gui_point_in_rect(mx, my, close_button)) {
+                    close_active_window();
+                    g_desktop.start_menu_open = FALSE;
+                    return 0;
+                }
             }
 
             if (g_desktop.start_menu_open && os_gui_point_in_rect(mx, my, start_menu)) {
