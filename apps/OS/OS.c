@@ -176,11 +176,11 @@ static void draw_app_list(void)
         char slices[16];
         itoa(app->cpu_slices, slices, 10);
 
-        windows_draw_string(g_desktop.app_window.x + 6, g_desktop.app_window.y + 16 + i*15, selector, BLACK);
-        windows_draw_string(g_desktop.app_window.x + 16, g_desktop.app_window.y + 16 + i*15, app->name, BLUE);
-        windows_draw_string(g_desktop.app_window.x + 112, g_desktop.app_window.y + 16 + i*15, state_to_string(app->state), BLACK);
-        windows_draw_string(g_desktop.app_window.x + 194, g_desktop.app_window.y + 16 + i*15, "Slices:", DARK_GREY);
-        windows_draw_string(g_desktop.app_window.x + 244, g_desktop.app_window.y + 16 + i*15, slices, BRIGHT_BLUE);
+        vga_draw_string(g_desktop.app_window.x + 6, g_desktop.app_window.y + 16 + i*15, selector, BLACK);
+        vga_draw_string(g_desktop.app_window.x + 16, g_desktop.app_window.y + 16 + i*15, app->name, BLUE);
+        vga_draw_string(g_desktop.app_window.x + 112, g_desktop.app_window.y + 16 + i*15, state_to_string(app->state), BLACK);
+        vga_draw_string(g_desktop.app_window.x + 194, g_desktop.app_window.y + 16 + i*15, "Slices:", DARK_GREY);
+        vga_draw_string(g_desktop.app_window.x + 244, g_desktop.app_window.y + 16 + i*15, slices, BRIGHT_BLUE);
     }
 }
 
@@ -189,38 +189,38 @@ static void draw_status_panel(void)
     char buf[16];
 
     itoa(g_kernel_metrics.ticks, buf, 10);
-    windows_draw_string(g_desktop.status_window.x + 6, g_desktop.status_window.y + 16, "Tick:", BLACK);
-    windows_draw_string(g_desktop.status_window.x + 46, g_desktop.status_window.y + 16, buf, BRIGHT_BLUE);
+    vga_draw_string(g_desktop.status_window.x + 6, g_desktop.status_window.y + 16, "Tick:", BLACK);
+    vga_draw_string(g_desktop.status_window.x + 46, g_desktop.status_window.y + 16, buf, BRIGHT_BLUE);
 
     itoa(g_framework.running_apps, buf, 10);
-    windows_draw_string(g_desktop.status_window.x + 86, g_desktop.status_window.y + 16, "Running:", BLACK);
-    windows_draw_string(g_desktop.status_window.x + 146, g_desktop.status_window.y + 16, buf, BRIGHT_BLUE);
+    vga_draw_string(g_desktop.status_window.x + 86, g_desktop.status_window.y + 16, "Running:", BLACK);
+    vga_draw_string(g_desktop.status_window.x + 146, g_desktop.status_window.y + 16, buf, BRIGHT_BLUE);
 
     itoa(g_kernel_metrics.ram_free_kb, buf, 10);
-    windows_draw_string(g_desktop.status_window.x + 184, g_desktop.status_window.y + 16, "RAM:", BLACK);
-    windows_draw_string(g_desktop.status_window.x + 220, g_desktop.status_window.y + 16, buf, BRIGHT_BLUE);
-    windows_draw_string(g_desktop.status_window.x + 258, g_desktop.status_window.y + 16, "KB", BLACK);
+    vga_draw_string(g_desktop.status_window.x + 184, g_desktop.status_window.y + 16, "RAM:", BLACK);
+    vga_draw_string(g_desktop.status_window.x + 220, g_desktop.status_window.y + 16, buf, BRIGHT_BLUE);
+    vga_draw_string(g_desktop.status_window.x + 258, g_desktop.status_window.y + 16, "KB", BLACK);
 }
 
 static void draw_start_menu(void)
 {
-    windows_draw_window(g_desktop.start_menu, "Menu");
-    windows_draw_string(g_desktop.start_menu.x + 8, g_desktop.start_menu.y + 16, "L: Launch", BLACK);
-    windows_draw_string(g_desktop.start_menu.x + 8, g_desktop.start_menu.y + 28, "S: Suspend", BLACK);
-    windows_draw_string(g_desktop.start_menu.x + 8, g_desktop.start_menu.y + 40, "R: Resume", BLACK);
-    windows_draw_string(g_desktop.start_menu.x + 8, g_desktop.start_menu.y + 52, "T: Kill", BLACK);
+    os_gui_draw_window(g_desktop.start_menu, "Menu");
+    vga_draw_string(g_desktop.start_menu.x + 8, g_desktop.start_menu.y + 16, "L: Launch", BLACK);
+    vga_draw_string(g_desktop.start_menu.x + 8, g_desktop.start_menu.y + 28, "S: Suspend", BLACK);
+    vga_draw_string(g_desktop.start_menu.x + 8, g_desktop.start_menu.y + 40, "R: Resume", BLACK);
+    vga_draw_string(g_desktop.start_menu.x + 8, g_desktop.start_menu.y + 52, "T: Kill", BLACK);
 }
 
 static void draw_home_screen(void)
 {
     //windows_draw_desktop_background();
-    os_gui_draw_desktop_background()
-    windows_draw_taskbar(g_desktop.start_menu_open);
+    os_gui_draw_desktop_background();
+    os_gui_draw_taskbar(g_desktop.start_menu_open);
 
-    windows_draw_window(g_desktop.app_window, "Desktop");
+    os_gui_draw_window(g_desktop.app_window, "Desktop");
     draw_app_list();
 
-    windows_draw_window(g_desktop.status_window, "System");
+    os_gui_draw_window(g_desktop.status_window, "System");
     draw_status_panel();
 
     if (g_desktop.start_menu_open)
@@ -253,12 +253,12 @@ static void process_mouse(void)
     if (!mouse_consume_left_click()) return;
     mouse_get_position(&mx, &my);
 
-    if (windows_point_in_rect(mx, my, g_desktop.start_button)) {
+    if (os_gui_point_in_rect(mx, my, g_desktop.start_button)) {
         g_desktop.start_menu_open = !g_desktop.start_menu_open;
         return;
     }
 
-    if (g_desktop.start_menu_open && windows_point_in_rect(mx, my, g_desktop.start_menu)) {
+    if (g_desktop.start_menu_open && os_gui_point_in_rect(mx, my, g_desktop.start_menu)) {
         uint32_t row = my - g_desktop.start_menu.y;
         if (row < 24) framework_launch(g_framework.selected_app);
         else if (row < 36) framework_suspend(g_framework.selected_app);
@@ -300,7 +300,7 @@ int main(void)
         mouse_get_buttons(&left, &right, &middle);
 
         draw_home_screen();
-        windows_draw_cursor(mx, my, left || right || middle);
+        os_gui_draw_cursor(mx, my, left || right || middle);
 
         thread_yield();
     }
