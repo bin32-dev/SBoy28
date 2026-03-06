@@ -16,6 +16,9 @@ typedef enum {
     OS_APP_TERMINATED
 } os_app_state_t;
 
+void os_shutdown(void);
+void os_restart(void);
+
 int main(void);
 
 #endif //SBOY28_OS_H
