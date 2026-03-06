@@ -86,6 +86,11 @@ The long-term objective is to evolve this kernel from a teaching/prototyping OS 
 - **FAT-style RAM disk parser** under `src/drivers/iso/`:
   - Boot sector, FAT, root directory parsing helpers.
   - Basic file lookup and read routines.
+- **New FAT32 filesystem layer** under `src/drivers/filesystem.c`:
+  - Mount FAT32 volumes from a block device buffer.
+  - Path-based file open/read/write and seek support.
+  - Directory enumeration and FAT cluster allocation for growth.
+  - FAT attributes surfaced as file permission bits (e.g., read-only).
 - **ELF reader prototype** under `src/drivers/elf/`:
   - Assembly proof-of-concept for opening/reading ELF header bytes.
   - Not integrated into kernel process loading yet.
