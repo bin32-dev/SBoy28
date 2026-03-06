@@ -3,8 +3,7 @@
 #include "drivers/vga.h"
 #include "ui/colors.h"
 
-#include <stdlib.h>
-#include <string.h>
+#include <common/utils.h>
 
 #define OS_MAX_WINDOWS 16
 #define OS_MAX_CLASSES 16
@@ -45,6 +44,12 @@ static BOOL g_quit_requested;
 static int g_quit_code;
 static UINT g_next_atom = 1;
 
+static int strcmp(char name[64], LPCSTR name1);
+
+void strncpy(char name[64], LPCSTR name1, size_t i);
+
+void malloc(size_t i);
+
 static os_window_class_t* find_class_by_name(LPCSTR name)
 {
     if (!name) {
@@ -58,6 +63,25 @@ static os_window_class_t* find_class_by_name(LPCSTR name)
     }
 
     return NULL;
+}
+
+static int strcmp(char name[64], LPCSTR name1)
+{
+    int i = 0;
+
+    while (i < 64 && name[i] && name1[i]) {
+        if (name[i] != name1[i]) {
+            return (unsigned char)name[i] - (unsigned char)name1[i];
+        }
+        i++;
+    }
+
+    if (i == 64)
+    {
+        return 0;
+    }
+
+    return (unsigned char)name[i] - (unsigned char)name1[i];
 }
 
 static BOOL is_valid_window(os_window_t* window)
@@ -114,6 +138,28 @@ ATOM WINAPI RegisterClass(CONST WNDCLASS* lpWndClass)
     }
 
     return 0;
+}
+
+void strncpy(char name[64], LPCSTR name1, size_t n)
+{
+    size_t i = 0;
+
+    // Copy characters until n or null terminator
+    while (i < n && i < 64 && name1[i]) {
+        name[i] = name1[i];
+        i++;
+    }
+
+    // Pad with null characters if needed
+    while (i < n && i < 64) {
+        name[i] = '\0';
+        i++;
+    }
+
+    // Ensure the last byte is null (buffer safety)
+    if (i == 64) {
+        name[63] = '\0';
+    }
 }
 
 ATOM WINAPI RegisterClassEx(CONST WNDCLASSEX* lpWndClassEx)
@@ -519,6 +565,8 @@ HBRUSH WINAPI CreateSolidBrush(COLORREF crColor)
     brush->color = crColor;
     return (HBRUSH)brush;
 }
+
+
 
 HGDIOBJ WINAPI SelectObject(HDC hdc, HGDIOBJ hgdiobj)
 {
