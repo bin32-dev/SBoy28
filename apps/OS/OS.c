@@ -548,6 +548,13 @@ int main(void)
     ShowWindow(g_main_window, SW_SHOW);
     UpdateWindow(g_main_window);
 
+    {
+        PAINTSTRUCT ps;
+        HDC dc = BeginPaint(g_main_window, &ps);
+        draw_desktop(dc);
+        EndPaint(g_main_window, &ps);
+    }
+
     while (1) {
         if (is_key_pressed()) {
             uint8_t scancode = read_key();
@@ -563,7 +570,12 @@ int main(void)
             DispatchMessage(&msg);
         }
 
-        SendMessage(g_main_window, WM_PAINT, 0, 0);
+        {
+            PAINTSTRUCT ps;
+            HDC dc = BeginPaint(g_main_window, &ps);
+            draw_desktop(dc);
+            EndPaint(g_main_window, &ps);
+        }
 
         mouse_get_position(&mx, &my);
         mouse_get_buttons(&left, &right, &middle);
