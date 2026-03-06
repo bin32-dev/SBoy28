@@ -45,7 +45,10 @@ typedef WORD ATOM;
 
 #define TRUE  1
 #define FALSE 0
-#define NULL  ((void*)0)
+
+#ifndef NULL
+#define NULL ((void*)0)
+#endif
 
 #define CONST const
 
@@ -70,10 +73,20 @@ DECLARE_HANDLE(HICON);
 DECLARE_HANDLE(HMENU);
 DECLARE_HANDLE(HGDIOBJ);
 
-/* Calling conventions (for source compatibility; custom OS implements __stdcall) */
+/* Calling conventions (for source compatibility across toolchains) */
+#if defined(_MSC_VER)
 #define WINAPI   __stdcall
 #define CALLBACK __stdcall
 #define WINAPIV  __cdecl
+#elif defined(__GNUC__) && (defined(__i386__) || defined(_M_IX86))
+#define WINAPI   __attribute__((stdcall))
+#define CALLBACK __attribute__((stdcall))
+#define WINAPIV  __attribute__((cdecl))
+#else
+#define WINAPI
+#define CALLBACK
+#define WINAPIV
+#endif
 
 /* Window procedure type */
 typedef LRESULT (CALLBACK *WNDPROC)(HWND, UINT, WPARAM, LPARAM);

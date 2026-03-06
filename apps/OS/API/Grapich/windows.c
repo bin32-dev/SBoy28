@@ -2,6 +2,7 @@
 #include "OS/Grapich/gui.h"
 #include "drivers/vga.h"
 #include "ui/colors.h"
+#include "kernel/kheap.h"
 
 #include <common/utils.h>
 
@@ -48,7 +49,6 @@ static int strcmp(char name[64], LPCSTR name1);
 
 void strncpy(char name[64], LPCSTR name1, size_t i);
 
-void malloc(size_t i);
 
 static os_window_class_t* find_class_by_name(LPCSTR name)
 {
@@ -557,7 +557,7 @@ int WINAPI DrawTextA(HDC hdc, LPCSTR lpchText, int cchText, LPRECT lprc, UINT fo
 
 HBRUSH WINAPI CreateSolidBrush(COLORREF crColor)
 {
-    os_brush_t* brush = (os_brush_t*)malloc(sizeof(os_brush_t));
+    os_brush_t* brush = (os_brush_t*)kmalloc(sizeof(os_brush_t));
     if (!brush) {
         return NULL;
     }
@@ -580,7 +580,7 @@ BOOL WINAPI DeleteObject(HGDIOBJ hObject)
         return FALSE;
     }
 
-    free(hObject);
+    kfree(hObject);
     return TRUE;
 }
 

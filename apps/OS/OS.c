@@ -1,10 +1,13 @@
+#include <OS/Grapich/gui.h>
 #include "OS/OS.h"
-#include "OS/Grapich/gui.h"
+#include "OS/Grapich/windows.h"
 #include "common/utils.h"
 #include "drivers/keyboard.h"
 #include "drivers/mouse.h"
 #include "drivers/thread.h"
 #include "kernel/pmm.h"
+
+/* ---------------- Kernel Metrics ---------------- */
 
 typedef struct {
     uint32_t ticks;
@@ -12,6 +15,10 @@ typedef struct {
     uint32_t ram_total_kb;
     uint32_t ram_free_kb;
 } kernel_metrics_t;
+
+static kernel_metrics_t g_kernel_metrics;
+
+/* ---------------- Application Framework ---------------- */
 
 typedef struct {
     uint32_t pid;
@@ -27,6 +34,10 @@ typedef struct {
     uint32_t next_pid;
 } app_framework_t;
 
+static app_framework_t g_framework;
+
+/* ---------------- Desktop / UI State ---------------- */
+
 typedef struct {
     os_rect_t app_window;
     os_rect_t status_window;
@@ -35,22 +46,22 @@ typedef struct {
     bool start_menu_open;
 } desktop_state_t;
 
-static kernel_metrics_t g_kernel_metrics;
-static app_framework_t g_framework;
 static desktop_state_t g_desktop;
+
+/* ---------------- Helpers ---------------- */
 
 static const char* state_to_string(os_app_state_t state)
 {
     switch (state) {
-        case OS_APP_STOPPED: return "STOPPED";
-        case OS_APP_RUNNING: return "RUNNING";
-        case OS_APP_SUSPENDED: return "SUSPENDED";
+        case OS_APP_STOPPED:    return "STOPPED";
+        case OS_APP_RUNNING:    return "RUNNING";
+        case OS_APP_SUSPENDED:  return "SUSPENDED";
         case OS_APP_TERMINATED: return "TERMINATED";
         default: return "UNKNOWN";
     }
 }
 
-/* ---------------- Kernel-facing API (mediator layer) ---------------- */
+/* ---------------- Kernel Operations ---------------- */
 
 static uint32_t kernel_alloc_pages(uint32_t pages)
 {
@@ -60,28 +71,25 @@ static uint32_t kernel_alloc_pages(uint32_t pages)
 
 static void kernel_release_pages(uint32_t pages)
 {
-    if (g_kernel_metrics.memory_pages_used > pages) {
+    if (g_kernel_metrics.memory_pages_used > pages)
         g_kernel_metrics.memory_pages_used -= pages;
-    } else {
+    else
         g_kernel_metrics.memory_pages_used = 0;
-    }
 }
 
-static void kernel_scheduler_tick(void)
+static void kernel_scheduler_tick(void) { g_kernel_metrics.ticks++; }
+
+static void kernel_refresh_ram_metrics(void)
 {
-    g_kernel_metrics.ticks++;
+    g_kernel_metrics.ram_total_kb = pmm_get_total_block_count() * 4;
+    g_kernel_metrics.ram_free_kb  = pmm_get_free_block_count() * 4;
 }
 
-/* ---------------- User-space application framework ---------------- */
+/* ---------------- Application Framework ---------------- */
 
 static void framework_register_apps(void)
 {
-    const char* names[OS_MAX_APPS] = {
-        "HomeShell",
-        "ClockApp",
-        "NotesLite",
-        "TaskPeek"
-    };
+    const char* names[OS_MAX_APPS] = { "HomeShell", "ClockApp", "NotesLite", "TaskPeek" };
 
     for (uint32_t i = 0; i < OS_MAX_APPS; i++) {
         g_framework.apps[i].pid = g_framework.next_pid++;
@@ -98,9 +106,8 @@ static void framework_launch(uint32_t index)
     app_descriptor_t* app = &g_framework.apps[index];
     if (app->state == OS_APP_RUNNING) return;
 
-    if (app->state == OS_APP_STOPPED || app->state == OS_APP_TERMINATED) {
+    if (app->state == OS_APP_STOPPED || app->state == OS_APP_TERMINATED)
         kernel_alloc_pages(2);
-    }
 
     app->state = OS_APP_RUNNING;
     g_framework.running_apps++;
@@ -111,10 +118,10 @@ static void framework_suspend(uint32_t index)
     if (index >= OS_MAX_APPS) return;
 
     app_descriptor_t* app = &g_framework.apps[index];
-    if (app->state != OS_APP_RUNNING) return;
-
-    app->state = OS_APP_SUSPENDED;
-    if (g_framework.running_apps > 0) g_framework.running_apps--;
+    if (app->state == OS_APP_RUNNING) {
+        app->state = OS_APP_SUSPENDED;
+        if (g_framework.running_apps > 0) g_framework.running_apps--;
+    }
 }
 
 static void framework_resume(uint32_t index)
@@ -122,10 +129,10 @@ static void framework_resume(uint32_t index)
     if (index >= OS_MAX_APPS) return;
 
     app_descriptor_t* app = &g_framework.apps[index];
-    if (app->state != OS_APP_SUSPENDED) return;
-
-    app->state = OS_APP_RUNNING;
-    g_framework.running_apps++;
+    if (app->state == OS_APP_SUSPENDED) {
+        app->state = OS_APP_RUNNING;
+        g_framework.running_apps++;
+    }
 }
 
 static void framework_terminate(uint32_t index)
@@ -133,13 +140,11 @@ static void framework_terminate(uint32_t index)
     if (index >= OS_MAX_APPS) return;
 
     app_descriptor_t* app = &g_framework.apps[index];
-    if (app->state == OS_APP_RUNNING && g_framework.running_apps > 0) {
+    if (app->state == OS_APP_RUNNING && g_framework.running_apps > 0)
         g_framework.running_apps--;
-    }
 
-    if (app->state != OS_APP_TERMINATED) {
+    if (app->state != OS_APP_TERMINATED)
         kernel_release_pages(2);
-    }
 
     app->state = OS_APP_TERMINATED;
 }
@@ -147,152 +152,119 @@ static void framework_terminate(uint32_t index)
 static void framework_schedule(void)
 {
     for (uint32_t i = 0; i < OS_MAX_APPS; i++) {
-        if (g_framework.apps[i].state == OS_APP_RUNNING) {
+        if (g_framework.apps[i].state == OS_APP_RUNNING)
             g_framework.apps[i].cpu_slices++;
-        }
     }
 }
 
-static void kernel_refresh_ram_metrics(void)
-{
-    uint32_t total_blocks = pmm_get_total_block_count();
-    uint32_t free_blocks = pmm_get_free_block_count();
-
-    g_kernel_metrics.ram_total_kb = total_blocks * 4;
-    g_kernel_metrics.ram_free_kb = free_blocks * 4;
-}
-
-/* ---------------- UI / Desktop ---------------- */
+/* ---------------- Desktop / UI ---------------- */
 
 static void desktop_init(void)
 {
-    g_desktop.app_window = (os_rect_t){ 12, 20, 296, 112 };
-    g_desktop.status_window = (os_rect_t){ 12, 136, 296, 44 };
-    g_desktop.start_menu = (os_rect_t){ 4, VGA_HEIGHT - 86, 118, 70 };
-    g_desktop.start_button = (os_rect_t){ 4, VGA_HEIGHT - 14, 46, 12 };
+    g_desktop.app_window    = (os_rect_t){12, 20, 296, 112};
+    g_desktop.status_window = (os_rect_t){12, 136, 296, 44};
+    g_desktop.start_menu    = (os_rect_t){4, VGA_HEIGHT - 86, 118, 70};
+    g_desktop.start_button  = (os_rect_t){4, VGA_HEIGHT - 14, 46, 12};
     g_desktop.start_menu_open = false;
 }
 
 static void draw_app_list(void)
 {
-    char line[40];
-
     for (uint32_t i = 0; i < OS_MAX_APPS; i++) {
         app_descriptor_t* app = &g_framework.apps[i];
         const char* selector = (i == g_framework.selected_app) ? ">" : " ";
-        const char* state = state_to_string(app->state);
-        uint32_t x = (uint32_t)g_desktop.app_window.x + 6;
-        uint32_t y = (uint32_t)g_desktop.app_window.y + 16 + (i * 15);
+        char slices[16];
+        itoa(app->cpu_slices, slices, 10);
 
-        vga_draw_string(x, y, selector, BLACK);
-        vga_draw_string(x + 10, y, app->name, BLUE);
-        vga_draw_string(x + 112, y, state, BLACK);
-
-        itoa(app->cpu_slices, line, 10);
-        vga_draw_string(x + 194, y, "Slices:", DARK_GREY);
-        vga_draw_string(x + 244, y, line, BRIGHT_BLUE);
+        windows_draw_string(g_desktop.app_window.x + 6, g_desktop.app_window.y + 16 + i*15, selector, BLACK);
+        windows_draw_string(g_desktop.app_window.x + 16, g_desktop.app_window.y + 16 + i*15, app->name, BLUE);
+        windows_draw_string(g_desktop.app_window.x + 112, g_desktop.app_window.y + 16 + i*15, state_to_string(app->state), BLACK);
+        windows_draw_string(g_desktop.app_window.x + 194, g_desktop.app_window.y + 16 + i*15, "Slices:", DARK_GREY);
+        windows_draw_string(g_desktop.app_window.x + 244, g_desktop.app_window.y + 16 + i*15, slices, BRIGHT_BLUE);
     }
 }
 
 static void draw_status_panel(void)
 {
-    char line[24];
+    char buf[16];
 
-    itoa(g_kernel_metrics.ticks, line, 10);
-    vga_draw_string((uint32_t)g_desktop.status_window.x + 6, (uint32_t)g_desktop.status_window.y + 16, "Tick:", BLACK);
-    vga_draw_string((uint32_t)g_desktop.status_window.x + 46, (uint32_t)g_desktop.status_window.y + 16, line, BRIGHT_BLUE);
+    itoa(g_kernel_metrics.ticks, buf, 10);
+    windows_draw_string(g_desktop.status_window.x + 6, g_desktop.status_window.y + 16, "Tick:", BLACK);
+    windows_draw_string(g_desktop.status_window.x + 46, g_desktop.status_window.y + 16, buf, BRIGHT_BLUE);
 
-    itoa(g_framework.running_apps, line, 10);
-    vga_draw_string((uint32_t)g_desktop.status_window.x + 86, (uint32_t)g_desktop.status_window.y + 16, "Running:", BLACK);
-    vga_draw_string((uint32_t)g_desktop.status_window.x + 146, (uint32_t)g_desktop.status_window.y + 16, line, BRIGHT_BLUE);
+    itoa(g_framework.running_apps, buf, 10);
+    windows_draw_string(g_desktop.status_window.x + 86, g_desktop.status_window.y + 16, "Running:", BLACK);
+    windows_draw_string(g_desktop.status_window.x + 146, g_desktop.status_window.y + 16, buf, BRIGHT_BLUE);
 
-    itoa(g_kernel_metrics.ram_free_kb, line, 10);
-    vga_draw_string((uint32_t)g_desktop.status_window.x + 184, (uint32_t)g_desktop.status_window.y + 16, "RAM:", BLACK);
-    vga_draw_string((uint32_t)g_desktop.status_window.x + 220, (uint32_t)g_desktop.status_window.y + 16, line, BRIGHT_BLUE);
-    vga_draw_string((uint32_t)g_desktop.status_window.x + 258, (uint32_t)g_desktop.status_window.y + 16, "KB", BLACK);
+    itoa(g_kernel_metrics.ram_free_kb, buf, 10);
+    windows_draw_string(g_desktop.status_window.x + 184, g_desktop.status_window.y + 16, "RAM:", BLACK);
+    windows_draw_string(g_desktop.status_window.x + 220, g_desktop.status_window.y + 16, buf, BRIGHT_BLUE);
+    windows_draw_string(g_desktop.status_window.x + 258, g_desktop.status_window.y + 16, "KB", BLACK);
 }
 
 static void draw_start_menu(void)
 {
-    os_gui_draw_window(g_desktop.start_menu, "Menu");
-    vga_draw_string((uint32_t)g_desktop.start_menu.x + 8, (uint32_t)g_desktop.start_menu.y + 16, "L: Launch", BLACK);
-    vga_draw_string((uint32_t)g_desktop.start_menu.x + 8, (uint32_t)g_desktop.start_menu.y + 28, "S: Suspend", BLACK);
-    vga_draw_string((uint32_t)g_desktop.start_menu.x + 8, (uint32_t)g_desktop.start_menu.y + 40, "R: Resume", BLACK);
-    vga_draw_string((uint32_t)g_desktop.start_menu.x + 8, (uint32_t)g_desktop.start_menu.y + 52, "T: Kill", BLACK);
+    windows_draw_window(g_desktop.start_menu, "Menu");
+    windows_draw_string(g_desktop.start_menu.x + 8, g_desktop.start_menu.y + 16, "L: Launch", BLACK);
+    windows_draw_string(g_desktop.start_menu.x + 8, g_desktop.start_menu.y + 28, "S: Suspend", BLACK);
+    windows_draw_string(g_desktop.start_menu.x + 8, g_desktop.start_menu.y + 40, "R: Resume", BLACK);
+    windows_draw_string(g_desktop.start_menu.x + 8, g_desktop.start_menu.y + 52, "T: Kill", BLACK);
 }
 
 static void draw_home_screen(void)
 {
-    os_gui_draw_desktop_background();
-    os_gui_draw_taskbar(g_desktop.start_menu_open);
+    //windows_draw_desktop_background();
+    os_gui_draw_desktop_background()
+    windows_draw_taskbar(g_desktop.start_menu_open);
 
-    os_gui_draw_window(g_desktop.app_window, "Desktop");
-    vga_draw_string((uint32_t)g_desktop.app_window.x + 6, (uint32_t)g_desktop.app_window.y + 4,
-                    "", WHITE);
+    windows_draw_window(g_desktop.app_window, "Desktop");
     draw_app_list();
 
-    os_gui_draw_window(g_desktop.status_window, "System");
+    windows_draw_window(g_desktop.status_window, "System");
     draw_status_panel();
 
-    if (g_desktop.start_menu_open) {
+    if (g_desktop.start_menu_open)
         draw_start_menu();
-    }
 }
+
+/* ---------------- Input Handling ---------------- */
 
 static void process_key(uint8_t scancode)
 {
     if (scancode >= 0x80) return;
 
     if (scancode >= KEY_1 && scancode <= KEY_4) {
-        g_framework.selected_app = (uint32_t)(scancode - KEY_1);
+        g_framework.selected_app = scancode - KEY_1;
         return;
     }
 
     switch (scancode) {
-        case KEY_L:
-            framework_launch(g_framework.selected_app);
-            break;
-        case KEY_S:
-            framework_suspend(g_framework.selected_app);
-            break;
-        case KEY_R:
-            framework_resume(g_framework.selected_app);
-            break;
-        case KEY_T:
-            framework_terminate(g_framework.selected_app);
-            break;
-        default:
-            break;
+        case KEY_L: framework_launch(g_framework.selected_app); break;
+        case KEY_S: framework_suspend(g_framework.selected_app); break;
+        case KEY_R: framework_resume(g_framework.selected_app); break;
+        case KEY_T: framework_terminate(g_framework.selected_app); break;
+        default: break;
     }
 }
 
 static void process_mouse(void)
 {
-    int32_t mx;
-    int32_t my;
-
-    if (!mouse_consume_left_click()) {
-        return;
-    }
-
+    int32_t mx, my;
+    if (!mouse_consume_left_click()) return;
     mouse_get_position(&mx, &my);
 
-    if (os_gui_point_in_rect(mx, my, g_desktop.start_button)) {
+    if (windows_point_in_rect(mx, my, g_desktop.start_button)) {
         g_desktop.start_menu_open = !g_desktop.start_menu_open;
         return;
     }
 
-    if (g_desktop.start_menu_open && os_gui_point_in_rect(mx, my, g_desktop.start_menu)) {
-        uint32_t row = (uint32_t)(my - g_desktop.start_menu.y);
-        if (row < 24) {
-            framework_launch(g_framework.selected_app);
-        } else if (row < 36) {
-            framework_suspend(g_framework.selected_app);
-        } else if (row < 48) {
-            framework_resume(g_framework.selected_app);
-        } else {
-            framework_terminate(g_framework.selected_app);
-        }
+    if (g_desktop.start_menu_open && windows_point_in_rect(mx, my, g_desktop.start_menu)) {
+        uint32_t row = my - g_desktop.start_menu.y;
+        if (row < 24) framework_launch(g_framework.selected_app);
+        else if (row < 36) framework_suspend(g_framework.selected_app);
+        else if (row < 48) framework_resume(g_framework.selected_app);
+        else framework_terminate(g_framework.selected_app);
+
         g_desktop.start_menu_open = false;
         return;
     }
@@ -300,23 +272,15 @@ static void process_mouse(void)
     g_desktop.start_menu_open = false;
 }
 
-/* ---------------- App/OS entry ---------------- */
+/* ---------------- Main Loop ---------------- */
 
 int main(void)
 {
-    int32_t mx = 0;
-    int32_t my = 0;
-    bool left = false;
-    bool right = false;
-    bool middle = false;
+    int32_t mx = 0, my = 0;
+    bool left = false, right = false, middle = false;
 
-    g_kernel_metrics.ticks = 0;
-    g_kernel_metrics.memory_pages_used = 0;
-    g_kernel_metrics.ram_total_kb = 0;
-    g_kernel_metrics.ram_free_kb = 0;
-
-    g_framework.selected_app = 0;
-    g_framework.running_apps = 0;
+    g_kernel_metrics = (kernel_metrics_t){0};
+    g_framework = (app_framework_t){0};
     g_framework.next_pid = 1;
 
     framework_register_apps();
@@ -328,19 +292,15 @@ int main(void)
         framework_schedule();
         kernel_refresh_ram_metrics();
 
-        if (is_key_pressed()) {
-            uint8_t scancode = read_key();
-            process_key(scancode);
-        }
+        if (is_key_pressed())
+            process_key(read_key());
 
         process_mouse();
-
         mouse_get_position(&mx, &my);
         mouse_get_buttons(&left, &right, &middle);
 
         draw_home_screen();
-        os_gui_draw_cursor(mx, my, left || right || middle);
-        vga_render();
+        windows_draw_cursor(mx, my, left || right || middle);
 
         thread_yield();
     }
