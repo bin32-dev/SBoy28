@@ -8,10 +8,13 @@
 #include "drivers/thread.h"
 #include "drivers/vga.h"
 #include "ui/colors.h"
+#include "kernel/pmm.h"
 
 typedef struct {
     uint32_t ticks;
     uint32_t memory_pages_used;
+    uint32_t ram_total_kb;
+    uint32_t ram_free_kb;
 } kernel_metrics_t;
 
 typedef struct {
@@ -167,6 +170,16 @@ static void framework_schedule(void)
     }
 }
 
+
+static void kernel_refresh_ram_metrics(void)
+{
+    uint32_t total_blocks = pmm_get_total_block_count();
+    uint32_t free_blocks = pmm_get_free_block_count();
+
+    g_kernel_metrics.ram_total_kb = total_blocks * 4;
+    g_kernel_metrics.ram_free_kb = free_blocks * 4;
+}
+
 /* ---------------- UI / Home screen ---------------- */
 
 static void draw_home_screen(void)
@@ -214,6 +227,15 @@ static void draw_home_screen(void)
     vga_draw_string(12, 174, "Running Apps:", WHITE);
     vga_draw_string(96, 174, line, BRIGHT_MAGENTA);
 
+    itoa(g_kernel_metrics.ram_free_kb, line, 10);
+    vga_draw_string(140, 174, "RAM:", WHITE);
+    vga_draw_string(178, 174, line, BRIGHT_CYAN);
+    vga_draw_string(214, 174, "KB /", WHITE);
+
+    itoa(g_kernel_metrics.ram_total_kb, line, 10);
+    vga_draw_string(246, 174, line, BRIGHT_CYAN);
+    vga_draw_string(288, 174, "KB", WHITE);
+
     vga_render();
 }
 
@@ -250,17 +272,21 @@ int main(void)
 {
     g_kernel_metrics.ticks = 0;
     g_kernel_metrics.memory_pages_used = 0;
+    g_kernel_metrics.ram_total_kb = 0;
+    g_kernel_metrics.ram_free_kb = 0;
 
     g_framework.selected_app = 0;
     g_framework.running_apps = 0;
     g_framework.next_pid = 1;
 
     framework_register_apps();
+    kernel_refresh_ram_metrics();
     draw_home_screen();
 
     while (1) {
         kernel_scheduler_tick();
         framework_schedule();
+        kernel_refresh_ram_metrics();
 
         if (is_key_pressed()) {
             uint8_t scancode = read_key();

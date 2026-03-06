@@ -23,6 +23,34 @@ void time_thread(void* arg);
 
 mutex_t vga_mutex;
 
+static void draw_boot_log_line(uint32_t y, const char* status, uint8_t color)
+{
+    char line[64];
+    int hours = get_hours();
+    int minutes = get_minutes();
+    int seconds = get_seconds();
+
+    line[0] = '[';
+    line[1] = '0' + (hours / 10);
+    line[2] = '0' + (hours % 10);
+    line[3] = ':';
+    line[4] = '0' + (minutes / 10);
+    line[5] = '0' + (minutes % 10);
+    line[6] = ':';
+    line[7] = '0' + (seconds / 10);
+    line[8] = '0' + (seconds % 10);
+    line[9] = ']';
+    line[10] = ' ';
+    line[11] = ':';
+    line[12] = ' ';
+    line[13] = '\0';
+
+    append(line, status);
+
+    vga_draw_string(10, y, line, color);
+    vga_render();
+}
+
 void kmain(multiboot_info_t* mbd)
 {
     (void)mbd;
@@ -40,22 +68,28 @@ void kmain(multiboot_info_t* mbd)
     vga_init();
     vga_clear(DARK_GREY);
 
-    vga_draw_string(10, 10, "SBoy28 OS - Graphical Mode Active", WHITE);
-    vga_draw_string(10, 20, "Threading & Mouse Driver Started", BRIGHT_CYAN);
-    vga_render();
+    vga_draw_string(10, 10, "SBoy28 OS - Boot Sequence", WHITE);
+    draw_boot_log_line(26, "graphics initialized successfully", BRIGHT_CYAN);
 
     /* Hardware timers and drivers */
     init_pit(100);
+    draw_boot_log_line(38, "pit initialized successfully", BRIGHT_CYAN);
+
     mouse_init();
+    draw_boot_log_line(50, "mouse initialized successfully", BRIGHT_GREEN);
 
     /* Scheduler */
     thread_system_init();
     mutex_init(&vga_mutex);
+    draw_boot_log_line(62, "thread initialized successfully", BRIGHT_GREEN);
 
-    /* Thread registration */
-    thread_create(time_thread, NULL, 0);
-    thread_create(mouse_render_thread, NULL, 0);
-    thread_create(background_thread, NULL, 0);
+    draw_boot_log_line(86, "switching to OS home screen...", YELLOW);
+
+    Sleep(1);
+
+    /* Clean transition to apps/OS/OS.c */
+    vga_clear(BLUE);
+    vga_render();
 
     /* Enable interrupts */
     __asm__ volatile("sti");
@@ -67,7 +101,6 @@ void kmain(multiboot_info_t* mbd)
 
     // Here i want to coll those main application !
 
-    vga_clear(BLUE);
     main();
 }
 
