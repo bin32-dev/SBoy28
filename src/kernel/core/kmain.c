@@ -14,6 +14,7 @@
 #include "drivers/mouse.h"
 #include "drivers/thread.h"
 #include "drivers/pit.h"
+#include "OS/OS.h"
 
 // Thread prototypes
 void mouse_render_thread(void* arg);
@@ -60,9 +61,14 @@ void kmain(multiboot_info_t* mbd)
     __asm__ volatile("sti");
 
     /* Idle loop */
-    while (1) {
-        __asm__ volatile("hlt");
-    }
+    //while (1) {
+    //    __asm__ volatile("hlt");
+    //}
+
+    // Here i want to coll those main application !
+
+    vga_clear(BLUE);
+    main();
 }
 
 /* ---------------- TIME THREAD ---------------- */
