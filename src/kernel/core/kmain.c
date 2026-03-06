@@ -3,6 +3,8 @@
 #include "kernel/gdt.h"
 #include "kernel/idt.h"
 #include "kernel/kheap.h"
+#include "kernel/pmm.h"
+#include "kernel/vmm.h"
 #include "drivers/vga.h"
 #include "ui/ui.h"
 #include "common/utils.h"
@@ -27,6 +29,11 @@ void kmain(multiboot_info_t* mbd)
     /* Core CPU structures */
     init_gdt();
     init_idt();
+
+    /* Memory Management */
+    pmm_init(mbd);
+    vmm_init();
+    kheap_init();
 
     /* Graphics subsystem */
     vga_init();
