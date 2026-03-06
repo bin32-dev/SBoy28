@@ -33,7 +33,7 @@ file(GLOB KERNEL_DRIVER_SOURCES
     src/drivers/thread/src/*.c
     src/drivers/thread/asm/*.s
 )
-set(KERNEL_SOURCES ${KERNEL_CORE_SOURCES} ${KERNEL_DRIVER_SOURCES} apps/OS/OS.c apps/OS/API/Grapich/gui.c)
+set(KERNEL_SOURCES ${KERNEL_CORE_SOURCES} ${KERNEL_DRIVER_SOURCES} apps/OS/OS.c apps/OS/API/Grapich/gui.c apps/OS/API/Grapich/windows.c)
 set(BOOT_SOURCE src/boot/boot.s)
 set(BOOTSECTOR_SOURCE src/boot/bootsector.s)
 set(LINKER_SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/src/kernel/core/linker.ld)
