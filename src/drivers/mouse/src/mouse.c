@@ -74,6 +74,10 @@ static mouse_event_handler_t event_handler = NULL;
 /* Graphical coordinates */
 static int32_t mouse_x = 160;
 static int32_t mouse_y = 100;
+static bool mouse_left_pressed = false;
+static bool mouse_right_pressed = false;
+static bool mouse_middle_pressed = false;
+static bool mouse_left_click_pending = false;
 #define MOUSE_SCREEN_W 320
 #define MOUSE_SCREEN_H 200
 
@@ -106,6 +110,18 @@ void mouse_get_position(int32_t *x, int32_t *y) {
     if (y) *y = mouse_y;
 }
 
+void mouse_get_buttons(bool* left, bool* right, bool* middle) {
+    if (left) *left = mouse_left_pressed;
+    if (right) *right = mouse_right_pressed;
+    if (middle) *middle = mouse_middle_pressed;
+}
+
+bool mouse_consume_left_click(void) {
+    bool clicked = mouse_left_click_pending;
+    mouse_left_click_pending = false;
+    return clicked;
+}
+
 /* Basic polling read (safe to call from non-IRQ contexts) */
 bool mouse_poll(mouse_event_t *out) {
     /* Read one packet if available. Not robust — prefer IRQ flow. */
@@ -119,6 +135,14 @@ bool mouse_poll(mouse_event_t *out) {
         bool l = packet[0] & 0x1;
         bool r = packet[0] & 0x2;
         bool m = packet[0] & 0x4;
+
+        if (l && !mouse_left_pressed) {
+            mouse_left_click_pending = true;
+        }
+        mouse_left_pressed = l;
+        mouse_right_pressed = r;
+        mouse_middle_pressed = m;
+
         if (out) {
             out->dx = dx;
             out->dy = dy;
@@ -191,6 +215,14 @@ static void mouse_irq_handler(registers_t *regs) {
         bool r = packet[0] & 0x2;
         bool m = packet[0] & 0x4;
 
+        if (l && !mouse_left_pressed) {
+            mouse_left_click_pending = true;
+        }
+
+        mouse_left_pressed = l;
+        mouse_right_pressed = r;
+        mouse_middle_pressed = m;
+
         /* Update global coordinates */
         mouse_x += dx;
         mouse_y += dy;
@@ -231,6 +263,10 @@ void mouse_init(void) {
     packet_index = 0;
     has_handler = false;
     event_handler = NULL;
+    mouse_left_pressed = false;
+    mouse_right_pressed = false;
+    mouse_middle_pressed = false;
+    mouse_left_click_pending = false;
 
     /* device specific init */
     mouse_device_init();
