@@ -6,6 +6,7 @@
 #include "drivers/mouse.h"
 #include "drivers/rtc.h"
 #include "drivers/thread.h"
+#include "kernel/power.h"
 
 typedef struct {
     RECT start_menu;
@@ -23,6 +24,17 @@ typedef struct {
 
 static desktop_state_t g_desktop;
 static HWND g_main_window;
+
+
+void os_shutdown(void)
+{
+    kernel_shutdown();
+}
+
+void os_restart(void)
+{
+    kernel_restart();
+}
 
 static int rect_width(RECT rect) { return rect.right - rect.left; }
 static int rect_height(RECT rect) { return rect.bottom - rect.top; }
@@ -119,7 +131,7 @@ static void console_execute_command(void)
     if (g_desktop.console_input_len == 0) {
         console_push_line("Type 'help' for commands");
     } else if (str_eq(command_line, "help")) {
-        console_push_line("help clear echo time about exit");
+        console_push_line("help clear echo time about exit shutdown restart");
     } else if (str_eq(command_line, "clear")) {
         console_clear();
     } else if (str_starts_with(command_line, "echo ")) {
@@ -139,6 +151,12 @@ static void console_execute_command(void)
         console_push_line(response);
     } else if (str_eq(command_line, "about")) {
         console_push_line("SBoy28 desktop console v1");
+    } else if (str_eq(command_line, "shutdown")) {
+        console_push_line("Shutting down...");
+        os_shutdown();
+    } else if (str_eq(command_line, "restart")) {
+        console_push_line("Restarting...");
+        os_restart();
     } else if (str_eq(command_line, "exit")) {
         close_active_window();
     } else {
@@ -387,9 +405,9 @@ static void choose_menu_option(uint32_t row)
     } else if (row < 60) {
         set_active_window("End Session");
     } else if (row < 72) {
-        set_active_window("Shut Down");
+        os_shutdown();
     } else {
-        set_active_window("Restart");
+        os_restart();
     }
 }
 
@@ -404,8 +422,8 @@ static LRESULT CALLBACK desktop_wnd_proc(HWND hWnd, UINT msg, WPARAM wParam, LPA
             if (wParam == KEY_T) set_active_window("Task Manager");
             if (wParam == KEY_S) set_active_window("Settings");
             if (wParam == KEY_E) set_active_window("End Session");
-            if (wParam == KEY_D) set_active_window("Shut Down");
-            if (wParam == KEY_R) set_active_window("Restart");
+            if (wParam == KEY_D) os_shutdown();
+            if (wParam == KEY_R) os_restart();
             if (wParam == KEY_ESC) close_active_window();
             return 0;
 
