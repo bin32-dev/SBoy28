@@ -28,6 +28,7 @@ file(GLOB KERNEL_CORE_SOURCES CONFIGURE_DEPENDS
     src/kernel/core/*.s 
     src/ui/*.c 
     src/common/*.c
+    src/libc/*.c
 )
 list(REMOVE_ITEM KERNEL_CORE_SOURCES src/kernel/core/power.c)
 
