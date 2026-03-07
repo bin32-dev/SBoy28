@@ -20,6 +20,8 @@ set(COMMON_LINK_FLAGS -m32 -nostdlib -nodefaultlibs -nostartfiles -static)
 
 include_directories(include)
 
+add_subdirectory(apps/lua)
+
 # Sources
 file(GLOB KERNEL_CORE_SOURCES CONFIGURE_DEPENDS
     src/kernel/core/*.c 
@@ -51,6 +53,7 @@ add_custom_command(TARGET bootsector.elf POST_BUILD
 
 # Kernel
 add_executable(kernel.elf ${BOOT_SOURCE} ${KERNEL_SOURCES})
+target_link_libraries(kernel.elf PRIVATE lua_app_module)
 target_compile_options(kernel.elf PRIVATE ${COMMON_C_FLAGS})
 target_compile_options(kernel.elf PRIVATE $<$<COMPILE_LANGUAGE:ASM>:${COMMON_ASM_FLAGS}>)
 target_link_options(kernel.elf PRIVATE ${COMMON_LINK_FLAGS} -Wl,-T,${LINKER_SCRIPT} -Wl,--oformat=elf32-i386)
