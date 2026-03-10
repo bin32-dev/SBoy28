@@ -6,6 +6,53 @@
 
 #include "lua_syscalls.h"
 
+#include "common/utils.h"
+#include "drivers/filesystem.h"
+
+#define LUA_STARTUP_SCRIPT "2:/lua/init.lua"
+
+static int lua_os_print_impl(const char* message)
+{
+    if (!message) return -1;
+    print_string(message);
+    print_new_line();
+    return 0;
+}
+
+static int lua_os_console_write_impl(const char* message)
+{
+    if (!message) return -1;
+    print_string(message);
+    return 0;
+}
+
+static int lua_os_fs_exists_impl(const char* path)
+{
+    int fd;
+    if (!path) return 0;
+    fd = fs_open(path);
+    if (fd < 0) return 0;
+    (void)fs_close(fd);
+    return 1;
+}
+
+static void lua_runtime_install_os_api(void)
+{
+    lua_os_api_t api;
+    api.print = lua_os_print_impl;
+    api.window_create = 0;
+    api.fs_open = fs_open;
+    api.fs_read = fs_read;
+    api.fs_write = fs_write;
+    api.fs_close = fs_close;
+    api.fs_exists = lua_os_fs_exists_impl;
+    api.process_spawn = 0;
+    api.memory_stats = 0;
+    api.console_write = lua_os_console_write_impl;
+    api.input_poll = 0;
+    lua_syscalls_set_api(&api);
+}
+
 int lua_loader_load_script(lua_State* L, const char* script_path);
 
 static lua_State* g_lua_state;
@@ -22,6 +69,7 @@ int lua_runtime_init(void)
     }
 
     luaL_openlibs(g_lua_state);
+    lua_runtime_install_os_api();
 
     if (lua_bind_register_syscalls(g_lua_state) != 0) {
         lua_close(g_lua_state);
@@ -51,6 +99,11 @@ int lua_runtime_execute(const char* script_path)
     }
 
     return 0;
+}
+
+int lua_runtime_execute_startup(void)
+{
+    return lua_runtime_execute(LUA_STARTUP_SCRIPT);
 }
 
 void lua_runtime_shutdown(void)

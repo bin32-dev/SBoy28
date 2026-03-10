@@ -17,6 +17,7 @@
 #include "drivers/pit.h"
 #include "drivers/filesystem.h"
 #include "OS/OS.h"
+#include "lua_runtime.h"
 
 // Thread prototypes
 void mouse_render_thread(void* arg);
@@ -100,8 +101,19 @@ void kmain(multiboot_info_t* mbd) {
     mutex_init(&vga_mutex);
 
     filesystem_init();
-    draw_boot_log_line(62, "thread initialized successfully", BRIGHT_GREEN);
-    draw_boot_log_line(86, "switching to OS home screen...", YELLOW);
+    draw_boot_log_line(62, "filesystem mounted (0:/,1:/,2:/)", BRIGHT_GREEN);
+
+    if (lua_runtime_init() == 0) {
+        draw_boot_log_line(74, "lua runtime initialized", BRIGHT_GREEN);
+        if (lua_runtime_execute_startup() == 0) {
+            draw_boot_log_line(86, "executed 2:/lua/init.lua", BRIGHT_GREEN);
+        } else {
+            draw_boot_log_line(86, "lua startup script missing/failed", YELLOW);
+        }
+    } else {
+        draw_boot_log_line(74, "lua runtime init failed", YELLOW);
+    }
+    draw_boot_log_line(98, "switching to OS home screen...", YELLOW);
 
     Sleep(1);
     vga_clear(BLUE);

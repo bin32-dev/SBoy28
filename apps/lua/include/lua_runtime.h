@@ -7,6 +7,7 @@ extern "C" {
 
 int lua_runtime_init(void);
 int lua_runtime_execute(const char* script_path);
+int lua_runtime_execute_startup(void);
 void lua_runtime_shutdown(void);
 
 #ifdef __cplusplus
