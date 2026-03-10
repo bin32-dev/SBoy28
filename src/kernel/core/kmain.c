@@ -15,6 +15,7 @@
 #include "drivers/mouse.h"
 #include "drivers/thread.h"
 #include "drivers/pit.h"
+#include "drivers/filesystem.h"
 #include "OS/OS.h"
 
 // Thread prototypes
@@ -97,6 +98,8 @@ void kmain(multiboot_info_t* mbd) {
 
     thread_system_init();
     mutex_init(&vga_mutex);
+
+    filesystem_init();
     draw_boot_log_line(62, "thread initialized successfully", BRIGHT_GREEN);
     draw_boot_log_line(86, "switching to OS home screen...", YELLOW);
 

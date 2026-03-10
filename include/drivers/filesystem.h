@@ -2,53 +2,47 @@
 
 #include <stdint.h>
 
-#define FS_OK 0
-#define FS_ERR_INVALID -1
-#define FS_ERR_IO -2
-#define FS_ERR_NOT_FOUND -3
-#define FS_ERR_NOT_MOUNTED -4
-#define FS_ERR_NO_SPACE -5
-#define FS_ERR_ACCESS -6
+#define FS_MAX_VOLUMES 2
+#define FS_MAX_OPEN_FILES 16
 
-#define FS_OPEN_READ  0x01
-#define FS_OPEN_WRITE 0x02
-
-#define FS_ATTR_READ_ONLY 0x01
-#define FS_ATTR_HIDDEN    0x02
-#define FS_ATTR_SYSTEM    0x04
-#define FS_ATTR_VOLUME_ID 0x08
-#define FS_ATTR_DIRECTORY 0x10
-#define FS_ATTR_ARCHIVE   0x20
+/*
+ * ATA device signatures from CL/CH after identify probe.
+ */
+typedef enum {
+    FS_DEV_NONE = 0,
+    FS_DEV_PATA,
+    FS_DEV_PATAPI,
+    FS_DEV_SATA,
+    FS_DEV_SATAPI,
+    FS_DEV_UNKNOWN
+} fs_device_type_t;
 
 typedef struct {
-    uint8_t* base;
-    uint32_t size;
-} FSBlockDevice;
+    uint8_t present;
+    uint8_t slavebit;
+    fs_device_type_t type;
+    uint32_t sector_count;
+    uint16_t io_base;
+    uint16_t ctrl_base;
+} fs_disk_info_t;
 
-typedef struct {
-    char name[13];
-    uint8_t attributes;
-    uint32_t size;
-} FSDirEntryInfo;
+void filesystem_init(void);
+int filesystem_is_ready(uint8_t drive);
+const fs_disk_info_t* filesystem_get_disk_info(uint8_t drive);
 
-typedef struct {
-    uint32_t first_cluster;
-    uint32_t size;
-    uint32_t position;
-    uint8_t mode;
-    uint32_t dir_entry_sector;
-    uint32_t dir_entry_offset;
-    uint8_t valid;
-} FSFile;
+/* Kernel file API (fd-style) */
+int fs_open(const char *path);
+int fs_read(int fd, void *buf, int size);
+int fs_write(int fd, const void *buf, int size);
+int fs_close(int fd);
 
-int fs_mount_fat32(FSBlockDevice* device);
-int fs_unmount(void);
+/* Optional helper for integration tests/demo from kernel code. */
+void filesystem_example_usage(void);
 
-int fs_open(const char* path, uint8_t mode, FSFile* out_file);
-int fs_read(FSFile* file, void* out_buffer, uint32_t bytes_to_read, uint32_t* out_bytes_read);
-int fs_write(FSFile* file, const void* buffer, uint32_t bytes_to_write, uint32_t* out_bytes_written);
-int fs_seek(FSFile* file, uint32_t position);
-int fs_close(FSFile* file);
-
-int fs_list_dir(const char* path, FSDirEntryInfo* out_entries, uint32_t max_entries, uint32_t* out_count);
+/* Internal glue used by FatFs disk I/O implementation. */
+int fs_disk_initialize(uint8_t pdrv);
+int fs_disk_status(uint8_t pdrv);
+int fs_disk_read_sectors(uint8_t pdrv, void *buf, uint32_t lba, uint32_t count);
+int fs_disk_write_sectors(uint8_t pdrv, const void *buf, uint32_t lba, uint32_t count);
+int fs_disk_get_sector_count(uint8_t pdrv, uint32_t *out_sector_count);
 

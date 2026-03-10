@@ -19,10 +19,17 @@ set(COMMON_ASM_FLAGS -m32)
 set(COMMON_LINK_FLAGS -m32 -nostdlib -nodefaultlibs -nostartfiles -static)
 
 include_directories(include)
+include_directories(src/drivers/fat/source)
 
 add_subdirectory(apps/lua)
 
 # Sources
+
+set(FATFS_SOURCES
+    src/drivers/fat/source/ff.c
+    src/drivers/fat/source/ffsystem.c
+    src/drivers/fat/diskio.c
+)
 file(GLOB KERNEL_CORE_SOURCES CONFIGURE_DEPENDS
     src/kernel/core/*.c 
     src/kernel/core/*.s 
@@ -38,7 +45,7 @@ file(GLOB KERNEL_DRIVER_SOURCES CONFIGURE_DEPENDS
     src/drivers/thread/src/*.c
     src/drivers/thread/asm/*.s
 )
-set(KERNEL_SOURCES ${KERNEL_CORE_SOURCES} ${KERNEL_DRIVER_SOURCES} src/kernel/core/power.c apps/OS/OS.c apps/OS/API/Grapich/gui.c apps/OS/API/Grapich/windows.c)
+set(KERNEL_SOURCES ${KERNEL_CORE_SOURCES} ${KERNEL_DRIVER_SOURCES} ${FATFS_SOURCES} src/kernel/core/power.c apps/OS/OS.c apps/OS/API/Grapich/gui.c apps/OS/API/Grapich/windows.c)
 set(BOOT_SOURCE src/boot/boot.s)
 set(BOOTSECTOR_SOURCE src/boot/bootsector.s)
 set(LINKER_SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/src/kernel/core/linker.ld)
