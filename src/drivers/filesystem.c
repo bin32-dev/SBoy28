@@ -8,6 +8,8 @@
 
 #define ATA_PRIMARY_IO_BASE 0x1F0
 #define ATA_PRIMARY_CTRL_BASE 0x3F6
+#define ATA_SECONDARY_IO_BASE 0x170
+#define ATA_SECONDARY_CTRL_BASE 0x376
 
 #define ATA_REG_DATA      0x00
 #define ATA_REG_SECCOUNT0 0x02
@@ -39,6 +41,21 @@ typedef struct {
 static FATFS g_volumes[FS_MAX_VOLUMES];
 static fs_disk_info_t g_disks[FS_MAX_VOLUMES];
 static fs_fd_entry_t g_fd_table[FS_MAX_OPEN_FILES];
+
+#define FS_ATA_PROBE_SLOTS 4
+
+typedef struct {
+    uint16_t io_base;
+    uint16_t ctrl_base;
+    uint8_t slavebit;
+} ata_slot_t;
+
+static const ata_slot_t g_ata_slots[FS_ATA_PROBE_SLOTS] = {
+    { ATA_PRIMARY_IO_BASE, ATA_PRIMARY_CTRL_BASE, 0 },
+    { ATA_PRIMARY_IO_BASE, ATA_PRIMARY_CTRL_BASE, 1 },
+    { ATA_SECONDARY_IO_BASE, ATA_SECONDARY_CTRL_BASE, 0 },
+    { ATA_SECONDARY_IO_BASE, ATA_SECONDARY_CTRL_BASE, 1 }
+};
 
 static inline void outsw(uint16_t port, const void *buf, uint32_t words) {
     __asm__ volatile("cld; rep outsw" : : "d"(port), "S"(buf), "c"(words) : "memory");
@@ -222,29 +239,31 @@ static int fs_map_fresult(FRESULT res) {
 }
 
 void filesystem_init(void) {
+    static const char *const volume_names[FS_MAX_VOLUMES] = { "0:", "1:", "2:" };
+    uint8_t logical_drive = 0;
+
     memset(g_disks, 0, sizeof(g_disks));
     memset(g_fd_table, 0, sizeof(g_fd_table));
 
-    for (uint8_t drive = 0; drive < FS_MAX_VOLUMES; ++drive) {
-        fs_disk_info_t *d = &g_disks[drive];
-        d->io_base = ATA_PRIMARY_IO_BASE;
-        d->ctrl_base = ATA_PRIMARY_CTRL_BASE;
-        d->slavebit = drive;
+    for (uint8_t slot = 0; slot < FS_ATA_PROBE_SLOTS && logical_drive < FS_MAX_VOLUMES; ++slot) {
+        fs_disk_info_t candidate;
+        candidate.io_base = g_ata_slots[slot].io_base;
+        candidate.ctrl_base = g_ata_slots[slot].ctrl_base;
+        candidate.slavebit = g_ata_slots[slot].slavebit;
+        candidate.type = detect_devtype(candidate.slavebit, &candidate);
+        candidate.present = (candidate.type == FS_DEV_PATA || candidate.type == FS_DEV_SATA);
 
-        d->type = detect_devtype(d->slavebit, d);
-        d->present = (d->type == FS_DEV_PATA || d->type == FS_DEV_SATA);
-
-        if (d->present && ata_identify_sector_count(d) != FS_OK) {
-            d->present = 0;
-            d->type = FS_DEV_NONE;
+        if (!candidate.present) {
+            continue;
         }
-    }
 
-    if (g_disks[0].present) {
-        (void)f_mount(&g_volumes[0], "0:", 1);
-    }
-    if (g_disks[1].present) {
-        (void)f_mount(&g_volumes[1], "1:", 1);
+        if (ata_identify_sector_count(&candidate) != FS_OK) {
+            continue;
+        }
+
+        g_disks[logical_drive] = candidate;
+        (void)f_mount(&g_volumes[logical_drive], volume_names[logical_drive], 1);
+        ++logical_drive;
     }
 }
 

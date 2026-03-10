@@ -2,7 +2,7 @@
 
 #include <stdint.h>
 
-#define FS_MAX_VOLUMES 2
+#define FS_MAX_VOLUMES 3
 #define FS_MAX_OPEN_FILES 16
 
 /*
@@ -45,4 +45,3 @@ int fs_disk_status(uint8_t pdrv);
 int fs_disk_read_sectors(uint8_t pdrv, void *buf, uint32_t lba, uint32_t count);
 int fs_disk_write_sectors(uint8_t pdrv, const void *buf, uint32_t lba, uint32_t count);
 int fs_disk_get_sector_count(uint8_t pdrv, uint32_t *out_sector_count);
-

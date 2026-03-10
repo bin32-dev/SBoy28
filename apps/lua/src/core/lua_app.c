@@ -17,8 +17,10 @@ static int has_lua_extension(const char* path)
 
 int lua_app_register_handler(void)
 {
-    // TODO(OS): integrate Lua apps with OS launcher registration table.
-    // TODO(OS): route run <script.lua> and lua <script.lua> commands to Lua runtime.
+    /*
+     * Launcher integration point: the shell can check lua_app_can_handle()
+     * and dispatch to lua_app_launch().
+     */
     return 0;
 }
 
