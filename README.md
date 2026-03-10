@@ -184,13 +184,21 @@ Expected artifacts include:
 - `bootsector.bin`
 - `kernel.bin`
 - `SBoy28.img`
+- `data.img`
+- `apps.img`
+
+Optional packaged bundle:
+- `SBoy28-images.tar` (created with `cmake --build . --target images.bundle`)
 
 ## 2) Run in QEMU
 
 From the build directory:
 
 ```bash
-qemu-system-i386 -drive format=raw,file=SBoy28.img
+qemu-system-i386 \
+  -drive format=raw,file=SBoy28.img \
+  -drive format=raw,file=data.img \
+  -drive format=raw,file=apps.img
 ```
 
 Or use the CMake run target:
@@ -198,6 +206,33 @@ Or use the CMake run target:
 ```bash
 cmake --build . --target run
 ```
+
+Disk mapping used by the kernel:
+
+- `0:` -> `SBoy28.img` (OS/system disk)
+- `1:` -> `data.img` (data disk)
+- `2:` -> `apps.img` (applications disk)
+
+### Why not a single `.iso`?
+
+The current kernel storage path is ATA block-device based and expects separate writable disks.
+An ISO is an optical image format (typically read-only) and does not replace multiple writable ATA
+drives for `0:`, `1:`, and `2:` in this design.
+
+If you want one distributable file, use the archive target:
+
+```bash
+cmake --build . --target images.bundle
+```
+
+Then extract the tar and run QEMU with all three images.
+
+During build, Lua startup scripts are staged in `build/apps_disk/lua/` as:
+
+- `init.lua`
+- `test.lua`
+
+You can copy these into a FAT-formatted `apps.img` as `2:/lua/init.lua` and `2:/lua/test.lua`.
 
 ## 3) Windows notes
 

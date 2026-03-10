@@ -236,6 +236,9 @@ static int fs_map_fresult(FRESULT res) {
 }
 
 void filesystem_init(void) {
+    static const char *const volume_names[FS_MAX_VOLUMES] = { "0:", "1:", "2:" };
+    uint8_t logical_drive = 0;
+
     memset(g_disks, 0, sizeof(g_disks));
     memset(g_fd_table, 0, sizeof(g_fd_table));
 
@@ -245,20 +248,17 @@ void filesystem_init(void) {
         d->ctrl_base = g_ata_slots[drive].ctrl_base;
         d->slavebit = g_ata_slots[drive].slavebit;
 
-        d->type = detect_devtype(d->slavebit, d);
-        d->present = (d->type == FS_DEV_PATA || d->type == FS_DEV_SATA);
-
-        if (d->present && ata_identify_sector_count(d) != FS_OK) {
-            d->present = 0;
-            d->type = FS_DEV_NONE;
+        if (!candidate.present) {
+            continue;
         }
-    }
 
-    if (g_disks[0].present) {
-        (void)f_mount(&g_volumes[0], "0:", 1);
-    }
-    if (g_disks[1].present) {
-        (void)f_mount(&g_volumes[1], "1:", 1);
+        if (ata_identify_sector_count(&candidate) != FS_OK) {
+            continue;
+        }
+
+        g_disks[logical_drive] = candidate;
+        (void)f_mount(&g_volumes[logical_drive], volume_names[logical_drive], 1);
+        ++logical_drive;
     }
     if (g_disks[2].present) {
         (void)f_mount(&g_volumes[2], "2:", 1);

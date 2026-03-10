@@ -72,6 +72,10 @@ add_custom_command(TARGET kernel.elf POST_BUILD
 
 # Disk Image
 set(IMG_FILE ${CMAKE_BINARY_DIR}/SBoy28.img)
+set(DATA_IMG_FILE ${CMAKE_BINARY_DIR}/data.img)
+set(APPS_IMG_FILE ${CMAKE_BINARY_DIR}/apps.img)
+set(DATA_IMG_SIZE 33554432)
+set(APPS_IMG_SIZE 33554432)
 if(CMAKE_HOST_WIN32)
     add_custom_target(SBoy28.img ALL
             COMMAND cmd /c "copy /b bootsector.bin + kernel.bin SBoy28.img"
@@ -88,8 +92,36 @@ else()
             )
 endif()
 
+# Auxiliary disk images used by the kernel filesystem layer.
+add_custom_target(data.img ALL
+        COMMAND ${CMAKE_COMMAND} -E touch ${DATA_IMG_FILE}
+        COMMAND python ${CMAKE_CURRENT_SOURCE_DIR}/tools/pad_img.py ${DATA_IMG_FILE} ${DATA_IMG_SIZE}
+        COMMAND ${CMAKE_COMMAND} -E copy ${DATA_IMG_FILE} ${CMAKE_SOURCE_DIR}/build/data.img
+        )
+
+add_custom_target(apps.img ALL
+        COMMAND ${CMAKE_COMMAND} -E touch ${APPS_IMG_FILE}
+        COMMAND python ${CMAKE_CURRENT_SOURCE_DIR}/tools/pad_img.py ${APPS_IMG_FILE} ${APPS_IMG_SIZE}
+        COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_BINARY_DIR}/apps_disk/lua
+        COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_SOURCE_DIR}/apps/lua/scripts/init.lua ${CMAKE_BINARY_DIR}/apps_disk/lua/init.lua
+        COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_SOURCE_DIR}/apps/lua/scripts/test.lua ${CMAKE_BINARY_DIR}/apps_disk/lua/test.lua
+        COMMAND ${CMAKE_COMMAND} -E copy ${APPS_IMG_FILE} ${CMAKE_SOURCE_DIR}/build/apps.img
+        )
+
+# Package all runtime images into one distributable archive.
+add_custom_target(images.bundle
+        COMMAND ${CMAKE_COMMAND} -E tar cfv ${CMAKE_BINARY_DIR}/SBoy28-images.tar --format=gnutar
+            ${IMG_FILE}
+            ${DATA_IMG_FILE}
+            ${APPS_IMG_FILE}
+        DEPENDS SBoy28.img data.img apps.img
+        )
+
 # Run
 add_custom_target(run
-        COMMAND qemu-system-i386 -drive format=raw,file=${IMG_FILE}
-        DEPENDS SBoy28.img
+        COMMAND qemu-system-i386
+        -drive format=raw,file=${IMG_FILE}
+        -drive format=raw,file=${DATA_IMG_FILE}
+        -drive format=raw,file=${APPS_IMG_FILE}
+        DEPENDS SBoy28.img data.img apps.img
         )
