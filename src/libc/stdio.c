@@ -1,7 +1,10 @@
 #include <stdio.h>
+#include <unistd.h>
+
+#include "common/utils.h"
 
 struct sboy28_file {
-    void *backend_handle;
+    int fd;
     unsigned int flags;
     int eof;
     int error;
@@ -9,25 +12,83 @@ struct sboy28_file {
 };
 
 #define FILE_FLAG_STATIC_STREAM (1u << 0)
+#define FILE_FLAG_IN_USE        (1u << 1)
 
-static struct sboy28_file g_stdin  = {0, FILE_FLAG_STATIC_STREAM, 0, 0, EOF};
-static struct sboy28_file g_stdout = {0, FILE_FLAG_STATIC_STREAM, 0, 0, EOF};
-static struct sboy28_file g_stderr = {0, FILE_FLAG_STATIC_STREAM, 0, 0, EOF};
+static struct sboy28_file g_stdin  = {-1, FILE_FLAG_STATIC_STREAM, 0, 0, EOF};
+static struct sboy28_file g_stdout = {-1, FILE_FLAG_STATIC_STREAM, 0, 0, EOF};
+static struct sboy28_file g_stderr = {-1, FILE_FLAG_STATIC_STREAM, 0, 0, EOF};
+
+#define MAX_DYNAMIC_FILES 16
+static struct sboy28_file g_dynamic_streams[MAX_DYNAMIC_FILES];
+
+static struct sboy28_file *stdio_alloc_stream(void) {
+    int i;
+    for (i = 0; i < MAX_DYNAMIC_FILES; ++i) {
+        if ((g_dynamic_streams[i].flags & FILE_FLAG_IN_USE) == 0) {
+            g_dynamic_streams[i].fd = -1;
+            g_dynamic_streams[i].flags = FILE_FLAG_IN_USE;
+            g_dynamic_streams[i].eof = 0;
+            g_dynamic_streams[i].error = 0;
+            g_dynamic_streams[i].ungot_char = EOF;
+            return &g_dynamic_streams[i];
+        }
+    }
+
+    return (struct sboy28_file *)0;
+}
+
+static void stdio_free_stream(struct sboy28_file *f) {
+    if (!f) return;
+    f->fd = 0;
+    f->flags = 0;
+    f->eof = 0;
+    f->error = 0;
+    f->ungot_char = EOF;
+}
+
+static int stdio_mode_to_flags(const char *mode) {
+    if (!mode || !mode[0]) {
+        return -1;
+    }
+
+    if (mode[0] == 'r' || mode[0] == 'w' || mode[0] == 'a') {
+        return 0;
+    }
+
+    return -1;
+}
 
 FILE *stdin = &g_stdin;
 FILE *stdout = &g_stdout;
 FILE *stderr = &g_stderr;
 
 FILE *fopen(const char *filename, const char *mode) {
-    (void)filename;
-    (void)mode;
-    /* TODO: Hook fopen -> VFS open syscall. */
-    return (FILE *)0;
+    int fd;
+    struct sboy28_file *file;
+
+    if (!filename || stdio_mode_to_flags(mode) < 0) {
+        return (FILE *)0;
+    }
+
+    fd = open(filename, stdio_mode_to_flags(mode));
+    if (fd < 0) {
+        return (FILE *)0;
+    }
+
+    file = stdio_alloc_stream();
+    if (!file) {
+        (void)close(fd);
+        return (FILE *)0;
+    }
+
+    file->fd = fd;
+    return (FILE *)file;
 }
 
 FILE *freopen(const char *filename, const char *mode, FILE *stream) {
-    (void)stream;
-    /* TODO: Hook fopen -> VFS open syscall. */
+    if (stream) {
+        (void)fclose(stream);
+    }
     return fopen(filename, mode);
 }
 
@@ -40,8 +101,13 @@ int fclose(FILE *stream) {
         return 0;
     }
 
-    /* TODO: Hook fclose -> VFS close. */
-    return -1;
+    if (close(((struct sboy28_file *)stream)->fd) < 0) {
+        ((struct sboy28_file *)stream)->error = 1;
+        return -1;
+    }
+
+    stdio_free_stream((struct sboy28_file *)stream);
+    return 0;
 }
 
 size_t fread(void *ptr, size_t size, size_t nmemb, FILE *stream) {
@@ -52,9 +118,22 @@ size_t fread(void *ptr, size_t size, size_t nmemb, FILE *stream) {
         return 0;
     }
 
-    ((struct sboy28_file *)stream)->eof = 1;
-    /* TODO: Hook fread -> kernel file I/O. */
-    return 0;
+    if (size == 0 || nmemb == 0) {
+        return 0;
+    }
+
+    {
+        size_t total = size * nmemb;
+        int bytes = read(((struct sboy28_file *)stream)->fd, ptr, total);
+        if (bytes < 0) {
+            ((struct sboy28_file *)stream)->error = 1;
+            return 0;
+        }
+        if ((size_t)bytes < total) {
+            ((struct sboy28_file *)stream)->eof = 1;
+        }
+        return (size_t)bytes / size;
+    }
 }
 
 size_t fwrite(const void *ptr, size_t size, size_t nmemb, FILE *stream) {
@@ -65,8 +144,31 @@ size_t fwrite(const void *ptr, size_t size, size_t nmemb, FILE *stream) {
         return 0;
     }
 
-    /* TODO: Hook fwrite -> kernel file I/O. */
-    return 0;
+    if (stream == stdout || stream == stderr) {
+        const char *chars = (const char *)ptr;
+        size_t total = size * nmemb;
+        char temp[2] = {0, 0};
+        size_t i;
+        for (i = 0; i < total; ++i) {
+            temp[0] = chars[i];
+            print_string(temp);
+        }
+        return nmemb;
+    }
+
+    if (size == 0 || nmemb == 0) {
+        return 0;
+    }
+
+    {
+        size_t total = size * nmemb;
+        int bytes = write(((struct sboy28_file *)stream)->fd, ptr, total);
+        if (bytes < 0) {
+            ((struct sboy28_file *)stream)->error = 1;
+            return 0;
+        }
+        return (size_t)bytes / size;
+    }
 }
 
 int fseek(FILE *stream, long offset, int whence) {

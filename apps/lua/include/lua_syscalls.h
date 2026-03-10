@@ -7,6 +7,10 @@ typedef struct lua_os_api {
     int (*print)(const char* message);
     int (*window_create)(int width, int height, const char* title);
     int (*fs_open)(const char* path);
+    int (*fs_read)(int fd, void* buffer, int size);
+    int (*fs_write)(int fd, const void* buffer, int size);
+    int (*fs_close)(int fd);
+    int (*fs_exists)(const char* path);
     int (*process_spawn)(const char* program);
     int (*memory_stats)(void);
     int (*console_write)(const char* message);

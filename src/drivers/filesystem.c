@@ -8,6 +8,8 @@
 
 #define ATA_PRIMARY_IO_BASE 0x1F0
 #define ATA_PRIMARY_CTRL_BASE 0x3F6
+#define ATA_SECONDARY_IO_BASE 0x170
+#define ATA_SECONDARY_CTRL_BASE 0x376
 
 #define ATA_REG_DATA      0x00
 #define ATA_REG_SECCOUNT0 0x02
@@ -39,6 +41,18 @@ typedef struct {
 static FATFS g_volumes[FS_MAX_VOLUMES];
 static fs_disk_info_t g_disks[FS_MAX_VOLUMES];
 static fs_fd_entry_t g_fd_table[FS_MAX_OPEN_FILES];
+
+typedef struct {
+    uint16_t io_base;
+    uint16_t ctrl_base;
+    uint8_t slavebit;
+} ata_slot_t;
+
+static const ata_slot_t g_ata_slots[FS_MAX_VOLUMES] = {
+    { ATA_PRIMARY_IO_BASE, ATA_PRIMARY_CTRL_BASE, 0 },
+    { ATA_PRIMARY_IO_BASE, ATA_PRIMARY_CTRL_BASE, 1 },
+    { ATA_SECONDARY_IO_BASE, ATA_SECONDARY_CTRL_BASE, 0 }
+};
 
 static inline void outsw(uint16_t port, const void *buf, uint32_t words) {
     __asm__ volatile("cld; rep outsw" : : "d"(port), "S"(buf), "c"(words) : "memory");
@@ -227,9 +241,9 @@ void filesystem_init(void) {
 
     for (uint8_t drive = 0; drive < FS_MAX_VOLUMES; ++drive) {
         fs_disk_info_t *d = &g_disks[drive];
-        d->io_base = ATA_PRIMARY_IO_BASE;
-        d->ctrl_base = ATA_PRIMARY_CTRL_BASE;
-        d->slavebit = drive;
+        d->io_base = g_ata_slots[drive].io_base;
+        d->ctrl_base = g_ata_slots[drive].ctrl_base;
+        d->slavebit = g_ata_slots[drive].slavebit;
 
         d->type = detect_devtype(d->slavebit, d);
         d->present = (d->type == FS_DEV_PATA || d->type == FS_DEV_SATA);
@@ -245,6 +259,9 @@ void filesystem_init(void) {
     }
     if (g_disks[1].present) {
         (void)f_mount(&g_volumes[1], "1:", 1);
+    }
+    if (g_disks[2].present) {
+        (void)f_mount(&g_volumes[2], "2:", 1);
     }
 }
 
