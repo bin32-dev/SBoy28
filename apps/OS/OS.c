@@ -248,7 +248,7 @@ static LRESULT CALLBACK desktop_wnd_proc(HWND hWnd, UINT msg, WPARAM wParam, LPA
     }
 }
 
-int main(void)
+int main_os(void)
 {
     MSG msg;
     int32_t mx = 0, my = 0;

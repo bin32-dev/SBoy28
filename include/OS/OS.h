@@ -19,6 +19,6 @@ typedef enum {
 void os_shutdown(void);
 void os_restart(void);
 
-int main(void);
+int main_os(void);
 
 #endif //SBOY28_OS_H
