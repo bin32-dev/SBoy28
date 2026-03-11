@@ -45,27 +45,44 @@ _start:
     mov boot_drive, %dl
     int $0x13
 
-    # Load kernel from Disk (Sector 2 onwards)
-    # We try to read 60 sectors. If it fails, we retry a few times.
+    # Load kernel from Disk (Sector 2 onwards).
+    # Read one sector at a time so we can safely advance CHS and retry
+    # individual sectors on transient BIOS read failures.
     mov $0x1000, %ax
     mov %ax, %es
     xor %bx, %bx
 
-    mov $3, %di             # Retry counter
-load_kernel:
-    mov $0x02, %ah          # BIOS read sectors
-    mov $60, %al            # Read 60 sectors (30KB)
+    mov $60, %si            # Read 60 sectors (30KB)
     mov $0x00, %ch          # Cylinder 0
-    mov $0x02, %cl          # Sector 2
     mov $0x00, %dh          # Head 0
+    mov $0x02, %cl          # Sector 2
+
+load_kernel:
+    mov $3, %di             # Retry counter (per sector)
+
+read_sector_retry:
+    mov $0x02, %ah          # BIOS read sectors
+    mov $0x01, %al          # Read 1 sector
     mov boot_drive, %dl     # Drive number
     int $0x13
-    jnc load_success        # If no error, jump to success
+    jnc read_sector_ok
 
-    # Error occurred, decrement retry and try again
+    # Error occurred: reset disk system, then retry this sector.
+    xor %ax, %ax
+    mov boot_drive, %dl
+    int $0x13
+
     dec %di
-    jnz load_kernel
+    jnz read_sector_retry
     jmp disk_error
+
+read_sector_ok:
+    add $512, %bx
+    dec %si
+    jz load_success
+
+    call advance_chs
+    jmp load_kernel
 
 load_success:
 
@@ -114,6 +131,19 @@ print_string:
     int $0x10
     jmp .loop
 .done:
+    ret
+
+advance_chs:
+    inc %cl
+    cmp $19, %cl            # sectors 1..18
+    jne .chs_done
+
+    mov $1, %cl
+    xor $1, %dh             # toggle head 0<->1
+    jnz .chs_done
+
+    inc %ch                 # wrapped head back to 0 => next cylinder
+.chs_done:
     ret
 
 disk_error:
