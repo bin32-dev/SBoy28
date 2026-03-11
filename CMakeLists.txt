@@ -13,6 +13,23 @@ enable_language(ASM)
 
 set(CMAKE_EXECUTABLE_SUFFIX "")
 
+# Optional API documentation generation with Doxygen.
+find_package(Doxygen QUIET)
+if(DOXYGEN_FOUND)
+    configure_file(${CMAKE_CURRENT_SOURCE_DIR}/docs/Doxyfile.in ${CMAKE_BINARY_DIR}/Doxyfile @ONLY)
+    add_custom_target(docs
+            COMMAND ${DOXYGEN_EXECUTABLE} ${CMAKE_BINARY_DIR}/Doxyfile
+            WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
+            COMMENT "Generating API documentation with Doxygen"
+            VERBATIM
+            )
+else()
+    add_custom_target(docs
+            COMMAND ${CMAKE_COMMAND} -E echo "Doxygen not found. Install doxygen to generate API docs."
+            )
+endif()
+
+
 # Compile flags
 set(COMMON_C_FLAGS -m32 -std=gnu99 -ffreestanding -fno-stack-protector -fno-pic -fno-builtin -O2 -Wall -Wextra)
 set(COMMON_ASM_FLAGS -m32)

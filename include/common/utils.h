@@ -17,6 +17,4 @@ uint32_t strlen(const char* str);
 uint32_t digit_count(int num);
 void itoa(uint32_t num, char *number, int base);
 void uint64_to_str(uint64_t value, char* buffer);
-void* memset(void* dest, int ch, uint32_t count);
-
 #endif
