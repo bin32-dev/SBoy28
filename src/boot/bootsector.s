@@ -136,6 +136,14 @@ print_string:
 advance_chs:
     inc %cl
     cmp $19, %cl            # sectors 1..18
+    jne .chs_done
+
+    mov $1, %cl
+    xor $1, %dh             # toggle head 0<->1
+    jnz .chs_done
+
+    inc %ch                 # wrapped head back to 0 => next cylinder
+.chs_done:
     jne .done
 
     mov $1, %cl
