@@ -152,3 +152,16 @@ void* memcpy(void* dest, const void* src, size_t count) {
     }
     return dest;
 }
+
+int memcmp(const void* lhs, const void* rhs, size_t count) {
+    const uint8_t* l = (const uint8_t*)lhs;
+    const uint8_t* r = (const uint8_t*)rhs;
+    while (count--) {
+        if (*l != *r) {
+            return (int)*l - (int)*r;
+        }
+        l++;
+        r++;
+    }
+    return 0;
+}
