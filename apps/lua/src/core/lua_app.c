@@ -4,15 +4,27 @@
 #include <stddef.h>
 #include <string.h>
 
+static size_t local_strlen(const char* str)
+{
+    size_t len = 0;
+    while (str && str[len] != '\0') {
+        ++len;
+    }
+    return len;
+}
+
 static int has_lua_extension(const char* path)
 {
-    const size_t len = strlen(path);
+    const size_t len = local_strlen(path);
 
     if (len < 4) {
         return 0;
     }
 
-    return strcmp(path + len - 4, ".lua") == 0;
+    return path[len - 4] == '.' &&
+           path[len - 3] == 'l' &&
+           path[len - 2] == 'u' &&
+           path[len - 1] == 'a';
 }
 
 int lua_app_register_handler(void)
