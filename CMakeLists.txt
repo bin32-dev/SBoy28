@@ -13,8 +13,6 @@ enable_language(ASM)
 
 set(CMAKE_EXECUTABLE_SUFFIX "")
 
-find_package(Python3 COMPONENTS Interpreter REQUIRED)
-
 # Optional API documentation generation with Doxygen.
 find_package(Doxygen QUIET)
 if(DOXYGEN_FOUND)
