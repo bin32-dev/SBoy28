@@ -109,3 +109,21 @@ add_custom_target(run
     COMMAND qemu-system-i386 -drive format=raw,file=${IMG_FILE}
     DEPENDS SBoy28.img
 )
+# ----------------------
+# UEFI ISO Packaging
+# ----------------------
+set(EFI_ISO_FILE ${CMAKE_BINARY_DIR}/SBoy28-efi.iso)
+add_custom_target(efi_iso
+    COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/tools/build_efi_iso.sh
+        --build-dir ${CMAKE_BINARY_DIR}
+        --output ${EFI_ISO_FILE}
+        --kernel ${CMAKE_BINARY_DIR}/kernel.elf
+        --raw-image ${IMG_FILE}
+    DEPENDS kernel.elf SBoy28.img
+    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+)
+
+add_custom_target(run_efi
+    COMMAND qemu-system-x86_64 -m 512 -cdrom ${EFI_ISO_FILE}
+    DEPENDS efi_iso
+)
