@@ -2,7 +2,6 @@
 #include "lua_runtime.h"
 
 #include <stddef.h>
-#include <string.h>
 
 static size_t local_strlen(const char* str)
 {
