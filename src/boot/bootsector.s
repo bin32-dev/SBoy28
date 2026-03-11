@@ -119,8 +119,13 @@ print_string:
 disk_error:
     mov $msg_error, %si
     call print_string
+
+    # Halt permanently without re-printing the message.
+    # HLT can resume on interrupts, so disable them and idle-loop.
+    cli
+.disk_hang:
     hlt
-    jmp disk_error
+    jmp .disk_hang
 
 # ---------------------------------------------------------
 # Data
