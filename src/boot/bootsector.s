@@ -127,31 +127,23 @@ print_string:
 .loop:
     lodsb
     test %al, %al
-    jz .done
+    jz .print_done
     int $0x10
     jmp .loop
-.done:
+.print_done:
     ret
 
 advance_chs:
     inc %cl
     cmp $19, %cl            # sectors 1..18
-    jne .chs_done
+    jne .advance_done
 
     mov $1, %cl
     xor $1, %dh             # toggle head 0<->1
-    jnz .chs_done
+    jnz .advance_done
 
     inc %ch                 # wrapped head back to 0 => next cylinder
-.chs_done:
-    jne .done
-
-    mov $1, %cl
-    xor $1, %dh             # toggle head 0<->1
-    jnz .done
-
-    inc %ch                 # wrapped head back to 0 => next cylinder
-.done:
+.advance_done:
     ret
 
 disk_error:
