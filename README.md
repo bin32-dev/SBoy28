@@ -190,6 +190,18 @@ Expected artifacts include:
 Optional packaged bundle:
 - `SBoy28-images.tar` (created with `cmake --build . --target images.bundle`)
 
+## 1.1) Generate full API documentation (Doxygen)
+
+```bash
+cmake --build . --target docs
+```
+
+If `doxygen` is installed, this generates:
+- `build/docs/html/index.html`
+- `build/docs/xml/`
+
+If `doxygen` is not installed, the target prints a helpful message instead of failing the full build.
+
 ## 2) Run in QEMU
 
 From the build directory:
