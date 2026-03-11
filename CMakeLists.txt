@@ -62,10 +62,24 @@ file(GLOB KERNEL_DRIVER_SOURCES CONFIGURE_DEPENDS
     src/drivers/*.c
     src/drivers/mouse/src/*.c
     src/drivers/thread/src/*.c
-    src/drivers/thread/asm/*.S
-    src/drivers/thread/asm/*.s
 )
-set(KERNEL_SOURCES ${KERNEL_CORE_SOURCES} ${KERNEL_DRIVER_SOURCES} ${FATFS_SOURCES} src/kernel/core/power.c apps/OS/OS.c apps/OS/API/Grapich/gui.c apps/OS/API/Grapich/windows.c)
+
+# Keep thread assembly sources explicit so critical context switch code is
+# always included across toolchains/generators.
+set(KERNEL_THREAD_ASM_SOURCES
+    src/drivers/thread/asm/context_switch.S
+)
+
+set(KERNEL_SOURCES
+    ${KERNEL_CORE_SOURCES}
+    ${KERNEL_DRIVER_SOURCES}
+    ${KERNEL_THREAD_ASM_SOURCES}
+    ${FATFS_SOURCES}
+    src/kernel/core/power.c
+    apps/OS/OS.c
+    apps/OS/API/Grapich/gui.c
+    apps/OS/API/Grapich/windows.c
+)
 set(BOOT_SOURCE src/boot/boot.s)
 set(BOOTSECTOR_SOURCE src/boot/bootsector.s)
 set(LINKER_SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/src/kernel/core/linker.ld)
