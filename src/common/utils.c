@@ -1,6 +1,7 @@
 #include "common/utils.h"
 #include "drivers/tty.h"
 #include "drivers/vga.h"
+#include <stddef.h>
 #include <stdint.h> // For standard integer types
 
 // =========================================================
@@ -33,8 +34,8 @@ void print_int(int num) {
 // =========================================================
 // String Utilities
 // =========================================================
-uint32_t strlen(const char* str) {
-    uint32_t len = 0;
+size_t strlen(const char* str) {
+    size_t len = 0;
     while (str[len] != '\0') len++;
     return len;
 }
@@ -135,7 +136,7 @@ void uint64_to_str(uint64_t value, char* buffer) {
     buffer[j] = 0;
 }
 
-void* memset(void* dest, int ch, uint32_t count) {
+void* memset(void* dest, int ch, size_t count) {
     uint8_t* p = (uint8_t*)dest;
     while (count--) {
         *p++ = (uint8_t)ch;
@@ -143,7 +144,7 @@ void* memset(void* dest, int ch, uint32_t count) {
     return dest;
 }
 
-void* memcpy(void* dest, const void* src, uint32_t count) {
+void* memcpy(void* dest, const void* src, size_t count) {
     uint8_t* d = (uint8_t*)dest;
     const uint8_t* s = (const uint8_t*)src;
     while (count--) {
