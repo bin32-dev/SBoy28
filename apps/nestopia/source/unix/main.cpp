@@ -146,7 +146,18 @@ static void NST_CALLBACK nst_cb_event(void *userData, User::Event event, const v
 }
 
 static void NST_CALLBACK nst_cb_log(void *userData, const char *string, unsigned long int length) {
-	// Print logging information to stderr
+	// Print logging information to stderr.
+	// Some FDS titles can emit the same disk error log every frame,
+	// which floods the terminal and makes useful logs unreadable.
+	// Suppress immediately repeated messages.
+	static std::string lastlog;
+	std::string current(string, length);
+
+	if (current == lastlog) {
+		return;
+	}
+
+	lastlog = current;
 	fprintf(stderr, "%s", string);
 }
 
