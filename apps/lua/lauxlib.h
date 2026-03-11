@@ -10,7 +10,7 @@
 
 
 #include <stddef.h>
-//#include <stdio.h>
+#include "stdio.h"
 
 #include "luaconf.h"
 #include "lua.h"
@@ -233,7 +233,7 @@ LUALIB_API char *(luaL_buffinitsize) (lua_State *L, luaL_Buffer *B, size_t sz);
 ** after that initial structure).
 */
 
-#define LUA_FILEHANDLE          "FILE*"
+// #define LUA_FILEHANDLE          "FILE*"
 
 
 typedef struct luaL_Stream {

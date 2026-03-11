@@ -2,7 +2,6 @@
 #include "lua_runtime.h"
 
 #include <stddef.h>
-#include <string.h>
 
 static int has_lua_extension(const char* path)
 {
