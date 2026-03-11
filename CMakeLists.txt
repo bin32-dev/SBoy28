@@ -34,6 +34,7 @@ file(GLOB KERNEL_DRIVER_SOURCES CONFIGURE_DEPENDS
     src/drivers/mouse/src/*.c
     src/drivers/thread/src/*.c
     src/drivers/thread/asm/*.s
+    src/drivers/thread/asm/*.S
 )
 set(KERNEL_SOURCES ${KERNEL_CORE_SOURCES} ${KERNEL_DRIVER_SOURCES} src/kernel/core/power.c apps/OS/OS.c apps/OS/API/Grapich/gui.c apps/OS/API/Grapich/windows.c)
 set(BOOT_SOURCE src/boot/boot.s)
