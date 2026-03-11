@@ -6,6 +6,7 @@
 #define SBOY28_OS_H
 
 #include <stdint.h>
+#include "kernel/multiboot.h"
 
 #define OS_MAX_APPS 4
 
@@ -19,6 +20,6 @@ typedef enum {
 void os_shutdown(void);
 void os_restart(void);
 
-int main_os(void);
+int main_os(multiboot_info_t* mbd);
 
 #endif //SBOY28_OS_H

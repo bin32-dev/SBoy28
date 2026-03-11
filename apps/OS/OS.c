@@ -1,12 +1,65 @@
+#include "kernel/gdt.h"
+#include "kernel/idt.h"
+#include "kernel/kheap.h"
+#include "kernel/pmm.h"
+#include "kernel/vmm.h"
 #include <kernel/power.h>
 #include "OS/OS.h"
 #include "OS/Grapich/gui.h"
 #include "OS/Grapich/windows.h"
 #include "common/utils.h"
+#include "drivers/filesystem.h"
 #include "drivers/keyboard.h"
 #include "drivers/mouse.h"
+#include "drivers/pit.h"
 #include "drivers/rtc.h"
 #include "drivers/thread.h"
+
+static void int_to_str(int val, char* buf, int width)
+{
+    int i = width - 1;
+    buf[i--] = '\0';
+
+    if (val == 0) {
+        buf[i--] = '0';
+    } else {
+        while (val > 0 && i >= 0) {
+            buf[i--] = '0' + (val % 10);
+            val /= 10;
+        }
+    }
+
+    while (i >= 0) {
+        buf[i--] = '0';
+    }
+}
+
+static void format_time_line(char* out, int hours, int minutes, int seconds, const char* status)
+{
+    out[0] = '[';
+    int_to_str(hours, out + 1, 3);
+    out[3] = ':';
+    int_to_str(minutes, out + 4, 3);
+    out[6] = ':';
+    int_to_str(seconds, out + 7, 3);
+    out[9] = ']';
+    out[10] = ' ';
+
+    int i = 0;
+    while (status && status[i] && (i + 11) < 64) {
+        out[11 + i] = status[i];
+        i++;
+    }
+    out[11 + i] = '\0';
+}
+
+static void draw_boot_log_line(uint32_t y, const char* status, uint8_t color)
+{
+    char line[64];
+    format_time_line(line, get_hours(), get_minutes(), get_seconds(), status);
+    vga_draw_string(10, y, line, color);
+    vga_render();
+}
 
 typedef struct {
     RECT start_menu;
@@ -248,11 +301,39 @@ static LRESULT CALLBACK desktop_wnd_proc(HWND hWnd, UINT msg, WPARAM wParam, LPA
     }
 }
 
-int main_os(void)
+int main_os(multiboot_info_t* mbd)
 {
     MSG msg;
     int32_t mx = 0, my = 0;
     bool left = false, right = false, middle = false;
+
+    init_gdt();
+    init_idt();
+    pmm_init(mbd);
+    vmm_init();
+    kheap_init();
+
+    vga_init();
+    vga_clear(DARK_GREY);
+    vga_draw_string(10, 10, "SBoy28 OS - Boot Sequence", WHITE);
+    draw_boot_log_line(26, "graphics initialized successfully", BRIGHT_CYAN);
+
+    init_pit(100);
+    draw_boot_log_line(38, "pit initialized successfully", BRIGHT_CYAN);
+
+    mouse_init();
+    draw_boot_log_line(50, "mouse initialized successfully", BRIGHT_GREEN);
+
+    thread_system_init();
+
+    filesystem_init();
+    draw_boot_log_line(62, "filesystem mounted (0:/,1:/,2:/)", BRIGHT_GREEN);
+
+    Sleep(3);
+    vga_clear(BLUE);
+    vga_render();
+
+    __asm__ volatile("sti");
 
     desktop_init();
 
