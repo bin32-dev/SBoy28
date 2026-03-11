@@ -144,6 +144,14 @@ advance_chs:
 
     inc %ch                 # wrapped head back to 0 => next cylinder
 .chs_done:
+    jne .done
+
+    mov $1, %cl
+    xor $1, %dh             # toggle head 0<->1
+    jnz .done
+
+    inc %ch                 # wrapped head back to 0 => next cylinder
+.done:
     ret
 
 disk_error:
