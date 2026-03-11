@@ -1,6 +1,7 @@
 #include "kernel/idt.h"
 #include "common/ports.h"
 #include "common/utils.h"
+#include "drivers/tty.h"
 
 
 extern void idt_flush(uint32_t);
@@ -21,6 +22,68 @@ extern void irq12(); extern void irq13(); extern void irq14(); extern void irq15
 idt_entry_t idt_entries[256];
 idt_ptr_t   idt_ptr;
 isr_t interrupt_handlers[256];
+
+
+static const char *exception_messages[32] = {
+    "Division By Zero",
+    "Debug",
+    "Non Maskable Interrupt",
+    "Breakpoint",
+    "Into Detected Overflow",
+    "Out of Bounds",
+    "Invalid Opcode",
+    "No Coprocessor",
+    "Double Fault",
+    "Coprocessor Segment Overrun",
+    "Bad TSS",
+    "Segment Not Present",
+    "Stack Fault",
+    "General Protection Fault",
+    "Page Fault",
+    "Unknown Interrupt",
+    "Coprocessor Fault",
+    "Alignment Check",
+    "Machine Check",
+    "SIMD Floating-Point",
+    "Virtualization",
+    "Control Protection",
+    "Reserved",
+    "Reserved",
+    "Reserved",
+    "Reserved",
+    "Reserved",
+    "Reserved",
+    "Hypervisor Injection",
+    "VMM Communication",
+    "Security Exception",
+    "Reserved"
+};
+
+static void print_exception_context(const registers_t *regs)
+{
+    char num_buf[12];
+
+    tty_putstring("\n[EXCEPTION] ");
+    if (regs->int_no < 32) {
+        tty_putstring(exception_messages[regs->int_no]);
+    } else {
+        tty_putstring("Unknown");
+    }
+
+    tty_putstring(" (#");
+    itoa(regs->int_no, num_buf, 10);
+    tty_putstring(num_buf);
+    tty_putstring(") err=");
+    itoa(regs->err_code, num_buf, 16);
+    tty_putstring("0x");
+    tty_putstring(num_buf);
+
+    tty_putstring(" eip=0x");
+    itoa(regs->eip, num_buf, 16);
+    tty_putstring(num_buf);
+    tty_putstring("\n");
+}
+
 
 static void idt_set_gate(uint8_t num, uint32_t base, uint16_t sel, uint8_t flags) {
     idt_entries[num].base_lo = base & 0xFFFF;
@@ -109,6 +172,20 @@ void isr_handler(registers_t regs) {
     if (interrupt_handlers[regs.int_no] != 0) {
         isr_t handler = interrupt_handlers[regs.int_no];
         handler(&regs);
+        return;
+    }
+
+    print_exception_context(&regs);
+
+    if (regs.int_no == 3) {
+        tty_putstring("[EXCEPTION] Breakpoint handled, continuing execution.\n");
+        return;
+    }
+
+    tty_putstring("[EXCEPTION] System halted.\n");
+    __asm__ volatile("cli");
+    for (;;) {
+        __asm__ volatile("hlt");
     }
 }
 

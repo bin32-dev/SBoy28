@@ -26,6 +26,7 @@ static thread_t *run_tail = NULL;
 
 /* Current running thread */
 static thread_t *current = NULL;
+static thread_t *deferred_reap = NULL;
 
 /* Scheduler lock */
 static spinlock_t sched_lock;
@@ -105,9 +106,27 @@ int thread_system_init(void)
 {
     run_head = run_tail = NULL;
     current = NULL;
+    deferred_reap = NULL;
     next_tid = 1;
     spinlock_init(&sched_lock);
     return 0;
+}
+
+static void reap_deferred_thread(void)
+{
+    if (!deferred_reap) {
+        return;
+    }
+
+    thread_t *zombie = deferred_reap;
+    deferred_reap = NULL;
+
+    if (zombie->stack) {
+        kfree(zombie->stack);
+        zombie->stack = NULL;
+    }
+
+    kfree(zombie);
 }
 
 tid_t thread_create(thread_fn_t fn, void *arg, size_t stack_size)
@@ -185,6 +204,8 @@ static void schedule(void)
 /* public: yield control voluntarily */
 void thread_yield(void)
 {
+    reap_deferred_thread();
+
     /* quick path: if only one thread, return */
     if (!run_head || run_head == current) return;
 
@@ -205,14 +226,17 @@ void scheduler_tick_from_irq(void)
 void thread_exit(void)
 {
     if (!current) return;
+
+    uint32_t flags = save_irq_state();
+    spinlock_lock(&sched_lock);
+
     current->state = THREAD_ZOMBIE;
-
-    /* free memory (deferred or immediate) */
-    kfree(current->stack);
-    current->stack = NULL;
-
-    /* set current to NULL and schedule next */
+    deferred_reap = current;
     current = NULL;
+
+    spinlock_unlock(&sched_lock);
+    restore_irq_state(flags);
+
     schedule();
 
     /* if schedule returns here (shouldn't), halt */

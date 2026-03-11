@@ -2,17 +2,30 @@
 #include "kernel/pmm.h"
 #include "kernel/idt.h"
 #include "common/utils.h"
+#include "drivers/tty.h"
 
 // The page directory - must be 4KB aligned!
 static uint32_t* page_directory = NULL;
 
 static void page_fault(registers_t* regs) {
     uint32_t faulting_address;
+    char num_buf[12];
     __asm__ volatile("mov %%cr2, %0" : "=r" (faulting_address));
 
-    // A real fault handler would do something more meaningful. 
-    // Here we just halt.
-    (void)regs;
+    tty_putstring("\n[PAGE FAULT] addr=0x");
+    itoa(faulting_address, num_buf, 16);
+    tty_putstring(num_buf);
+
+    tty_putstring(" eip=0x");
+    itoa(regs->eip, num_buf, 16);
+    tty_putstring(num_buf);
+
+    tty_putstring(" err=0x");
+    itoa(regs->err_code, num_buf, 16);
+    tty_putstring(num_buf);
+    tty_putstring("\n");
+
+    __asm__ volatile("cli");
     while (1) {
         __asm__ volatile("hlt");
     }
