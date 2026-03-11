@@ -199,7 +199,46 @@ Or use the CMake run target:
 cmake --build . --target run
 ```
 
-## 3) Windows notes
+
+## 3) Build a UEFI-bootable ISO (with `/boot`, `/apps`, `/data`)
+
+After building `kernel.elf`, run either:
+
+```bash
+cmake --build build --target efi_iso
+```
+
+or directly:
+
+```bash
+./tools/build_efi_iso.sh --build-dir build --output build/SBoy28-efi.iso --raw-image build/SBoy28.img
+```
+
+What this script does:
+- Creates an ISO staging tree with:
+  - `/boot` (kernel + GRUB config + OS init configs)
+  - `/apps` (default app payload from `apps/OS`, plus optional extras)
+  - `/data` (persistent/user files area for runtime use)
+- Builds UEFI fallback loaders at `EFI/BOOT/BOOTX64.EFI` and `EFI/BOOT/BOOTIA32.EFI`.
+- Optionally packages a raw image into `/data/images/`.
+- Produces a final bootable ISO file (`.iso`) compatible with QEMU/VirtualBox/USB workflows.
+
+Useful script options:
+- `--apps-dir <dir>` choose primary app source directory.
+- `--extra-apps <dir>` merge additional app folders into `/apps` (repeatable).
+- `--keep-staging` keep the generated `build/iso_root` tree for inspection/debugging.
+
+UEFI test example:
+
+```bash
+cmake --build build --target run_efi
+# or:
+qemu-system-x86_64 -m 512 -cdrom build/SBoy28-efi.iso
+```
+
+> Requirements: `grub-mkstandalone`, `grub-mkrescue`, `xorriso`.
+
+## 4) Windows notes
 
 A Windows-specific build guide is available at:
 - `docs/BUILD_WINDOWS.md`
