@@ -3,7 +3,7 @@
 #include "common/utils.h"
 
 // External symbol from linker script marking the end of the kernel's bss section
-extern uint32_t _ebss;
+extern uint8_t _ebss[];
 
 static uint32_t* pmm_bitmap = 0;
 static uint32_t pmm_total_blocks = 0;
@@ -29,7 +29,7 @@ void pmm_init(multiboot_info_t* mbd) {
     pmm_total_blocks = mem_size / PMM_BLOCK_SIZE;
 
     // Place the bitmap just after the kernel
-    pmm_bitmap = (uint32_t*)&_ebss;
+    pmm_bitmap = (uint32_t*)_ebss;
 
     // Calculate the size of the bitmap in DWORDS (32-bit units)
     uint32_t bitmap_size_dwords = pmm_total_blocks / 32;
@@ -55,7 +55,7 @@ void pmm_init(multiboot_info_t* mbd) {
 
     // Reserve the memory region occupied by the kernel AND the PMM bitmap itself
     // Kernel starts at 0x10000 (64KB). We will re-reserve up to bitmap_end.
-    uint32_t bitmap_end = (uint32_t)&_ebss + (bitmap_size_dwords * 4);
+    uint32_t bitmap_end = (uint32_t)_ebss + (bitmap_size_dwords * 4);
     uint32_t reserve_end_block = (bitmap_end + PMM_BLOCK_SIZE - 1) / PMM_BLOCK_SIZE;
 
     for (uint32_t i = 0; i < reserve_end_block; i++) {
