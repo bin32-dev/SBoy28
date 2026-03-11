@@ -40,6 +40,16 @@ size_t strlen(const char* str) {
     return len;
 }
 
+char* strchr(const char* str, int ch) {
+    while (*str != '\0') {
+        if (*str == (char)ch) {
+            return (char*)str;
+        }
+        str++;
+    }
+    return (ch == '\0') ? (char*)str : (char*)0;
+}
+
 uint32_t digit_count(int num) {
     if (num == 0) return 1;
     uint32_t count = 0;

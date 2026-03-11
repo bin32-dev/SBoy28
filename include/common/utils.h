@@ -16,6 +16,7 @@ void print_string(const char *str);
 void print_int(int num);
 void uint32_to_str(uint32_t value, char* buffer);
 size_t strlen(const char* str);
+char* strchr(const char* str, int ch);
 uint32_t digit_count(int num);
 void itoa(uint32_t num, char *number, int base);
 void uint64_to_str(uint64_t value, char* buffer);
