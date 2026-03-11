@@ -248,6 +248,11 @@ void filesystem_init(void) {
         d->ctrl_base = g_ata_slots[drive].ctrl_base;
         d->slavebit = g_ata_slots[drive].slavebit;
 
+        fs_disk_info_t candidate = *d;
+        candidate.type = detect_devtype(candidate.slavebit, &candidate);
+        candidate.present =
+            (candidate.type == FS_DEV_PATA || candidate.type == FS_DEV_SATA) ? 1U : 0U;
+
         if (!candidate.present) {
             continue;
         }
@@ -259,9 +264,6 @@ void filesystem_init(void) {
         g_disks[logical_drive] = candidate;
         (void)f_mount(&g_volumes[logical_drive], volume_names[logical_drive], 1);
         ++logical_drive;
-    }
-    if (g_disks[2].present) {
-        (void)f_mount(&g_volumes[2], "2:", 1);
     }
 }
 
